@@ -9,6 +9,7 @@ function MapController({ checkpoints, runnerPosition, focusTarget, fitTrigger, m
   const hasFittedOnce = useRef(false);
 
   useEffect(() => {
+    map.attributionControl?.remove();
     if (!checkpoints || checkpoints.length === 0) return;
     if (hasFittedOnce.current && fitTrigger === 0) return;
 

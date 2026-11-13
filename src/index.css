@@ -34,6 +34,10 @@
   filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(92%) saturate(65%);
 }
 
+.leaflet-control-attribution {
+  display: none !important;
+}
+
 .leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
   background: #121821 !important;
