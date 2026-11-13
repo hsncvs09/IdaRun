@@ -1,31 +1,55 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from "react-leaflet";
-import { Flag, MapPin, Navigation } from "lucide-react";
+import { Flag, MapPin, Maximize2, Navigation } from "lucide-react";
 import { interpolatePositionOnRoute } from "../lib/routeMath";
 
-function FitRouteBounds({ checkpoints, runnerPosition }) {
+function MapController({ checkpoints, runnerPosition, focusTarget, fitTrigger, markerRefs, runnerMarkerRef }) {
   const map = useMap();
+  const hasFittedOnce = useRef(false);
 
   useEffect(() => {
     if (!checkpoints || checkpoints.length === 0) return;
+    if (hasFittedOnce.current && fitTrigger === 0) return;
+
     const coords = checkpoints.map((c) => [c.lat, c.lng]);
     if (runnerPosition) coords.push(runnerPosition);
     const bounds = L.latLngBounds(coords);
     map.fitBounds(bounds, { padding: [36, 36], maxZoom: 6 });
-  }, [checkpoints, runnerPosition, map]);
+    hasFittedOnce.current = true;
+  }, [checkpoints, runnerPosition, fitTrigger, map]);
+
+  useEffect(() => {
+    if (!focusTarget) return;
+    if (focusTarget.type === "runner" && runnerPosition) {
+      map.flyTo(runnerPosition, 7, { duration: 0.9 });
+      setTimeout(() => {
+        runnerMarkerRef.current?.openPopup();
+      }, 350);
+      return;
+    }
+
+    if (focusTarget.type === "checkpoint" && focusTarget.checkpoint) {
+      const cp = focusTarget.checkpoint;
+      map.flyTo([cp.lat, cp.lng], 7, { duration: 0.9 });
+      setTimeout(() => {
+        markerRefs.current?.[cp.id]?.openPopup();
+      }, 350);
+    }
+  }, [focusTarget, runnerPosition, map, markerRefs, runnerMarkerRef]);
 
   return null;
 }
 
-function createCheckpointIcon(isReached, isNext) {
+function createCheckpointIcon(isReached, isNext, isSelected) {
   const bg = isReached ? "#10B981" : isNext ? "#FF5722" : "#243041";
-  const ring = isReached ? "#34D399" : isNext ? "#FF7849" : "#64748B";
+  const ring = isSelected ? "#FFFFFF" : isReached ? "#34D399" : isNext ? "#FF7849" : "#64748B";
+  const size = isSelected ? 18 : 14;
   return L.divIcon({
     className: "idarun-cp-pin",
-    html: `<div style="width:14px;height:14px;border-radius:9999px;background:${bg};border:2px solid ${ring};box-shadow:0 0 10px rgba(0,0,0,0.6);"></div>`,
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
+    html: `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:${bg};border:2.5px solid ${ring};box-shadow:0 0 12px rgba(0,0,0,0.75);"></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
 }
 
@@ -57,6 +81,28 @@ export default function MapTracker({ checkpoints = [], totalGroupKm = 0, targetD
   );
 
   const runnerIcon = useMemo(() => createRunnerIcon(), []);
+  const markerRefs = useRef({});
+  const runnerMarkerRef = useRef(null);
+
+  const [selectedId, setSelectedId] = useState(null);
+  const [focusTarget, setFocusTarget] = useState(null);
+  const [fitTrigger, setFitTrigger] = useState(0);
+
+  const handleSelectCheckpoint = (cp) => {
+    setSelectedId(cp.id);
+    setFocusTarget({ type: "checkpoint", checkpoint: cp, ts: Date.now() });
+  };
+
+  const handleFocusRunner = () => {
+    setSelectedId(null);
+    setFocusTarget({ type: "runner", ts: Date.now() });
+  };
+
+  const handleFitAll = () => {
+    setSelectedId(null);
+    setFocusTarget(null);
+    setFitTrigger((c) => c + 1);
+  };
 
   return (
     <section className="rounded-2xl border border-obsidian-700 bg-obsidian-800 overflow-hidden shadow-xl">
@@ -114,6 +160,28 @@ export default function MapTracker({ checkpoints = [], totalGroupKm = 0, targetD
 
       {/* Leaflet Map */}
       <div className="relative h-[340px] sm:h-[420px] w-full">
+        {/* Map Quick Actions */}
+        <div className="absolute top-3 right-3 z-[400] flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleFocusRunner}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-obsidian-600 bg-obsidian-800/90 hover:bg-obsidian-700 px-2.5 py-1.5 text-xs font-semibold text-ember-400 shadow-lg backdrop-blur-sm transition-colors"
+            title="Grubun aktif konumuna odaklan"
+          >
+            <Navigation className="h-3.5 w-3.5" />
+            Konum
+          </button>
+          <button
+            type="button"
+            onClick={handleFitAll}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-obsidian-600 bg-obsidian-800/90 hover:bg-obsidian-700 px-2.5 py-1.5 text-xs font-semibold text-sand-200 shadow-lg backdrop-blur-sm transition-colors"
+            title="Tüm Akçay - Tokyo rotasını göster"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+            Tüm Rota
+          </button>
+        </div>
+
         <MapContainer
           center={route.runnerPosition}
           zoom={4}
@@ -126,7 +194,14 @@ export default function MapTracker({ checkpoints = [], totalGroupKm = 0, targetD
             className="idarun-dark-tiles"
           />
 
-          <FitRouteBounds checkpoints={checkpoints} runnerPosition={route.runnerPosition} />
+          <MapController
+            checkpoints={checkpoints}
+            runnerPosition={route.runnerPosition}
+            focusTarget={focusTarget}
+            fitTrigger={fitTrigger}
+            markerRefs={markerRefs}
+            runnerMarkerRef={runnerMarkerRef}
+          />
 
           {route.remainingPath.length >= 2 && (
             <Polyline
@@ -154,11 +229,15 @@ export default function MapTracker({ checkpoints = [], totalGroupKm = 0, targetD
           {checkpoints.map((cp) => {
             const isReached = totalGroupKm >= Number(cp.target_km);
             const isNext = route.nextCheckpoint?.id === cp.id;
+            const isSelected = selectedId === cp.id;
             return (
               <Marker
                 key={cp.id}
                 position={[cp.lat, cp.lng]}
-                icon={createCheckpointIcon(isReached, isNext)}
+                icon={createCheckpointIcon(isReached, isNext, isSelected)}
+                ref={(ref) => {
+                  if (ref) markerRefs.current[cp.id] = ref;
+                }}
               >
                 <Popup>
                   <div className="min-w-[180px] space-y-1">
@@ -186,7 +265,12 @@ export default function MapTracker({ checkpoints = [], totalGroupKm = 0, targetD
             );
           })}
 
-          <Marker position={route.runnerPosition} icon={runnerIcon} zIndexOffset={1000}>
+          <Marker
+            position={route.runnerPosition}
+            icon={runnerIcon}
+            zIndexOffset={1000}
+            ref={runnerMarkerRef}
+          >
             <Popup>
               <div className="space-y-1">
                 <p className="font-display font-bold text-sm text-ember-400">
@@ -212,15 +296,20 @@ export default function MapTracker({ checkpoints = [], totalGroupKm = 0, targetD
           {checkpoints.map((cp) => {
             const reached = totalGroupKm >= Number(cp.target_km);
             const isNext = route.nextCheckpoint?.id === cp.id;
+            const isSelected = selectedId === cp.id;
             return (
-              <div
+              <button
                 key={cp.id}
-                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs transition-colors ${
-                  reached
-                    ? "border-pine-500/40 bg-pine-500/10 text-sand-100"
+                type="button"
+                onClick={() => handleSelectCheckpoint(cp)}
+                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs transition-all cursor-pointer ${
+                  isSelected
+                    ? "ring-2 ring-ember-400/80 border-ember-400 bg-obsidian-800 text-sand-100"
+                    : reached
+                    ? "border-pine-500/40 bg-pine-500/10 hover:bg-pine-500/20 text-sand-100"
                     : isNext
-                    ? "border-ember-500/50 bg-ember-500/10 text-sand-100"
-                    : "border-obsidian-700 bg-obsidian-800/70 text-sand-400"
+                    ? "border-ember-500/50 bg-ember-500/10 hover:bg-ember-500/20 text-sand-100"
+                    : "border-obsidian-700 bg-obsidian-800/70 hover:border-obsidian-500 hover:bg-obsidian-800 text-sand-400"
                 }`}
               >
                 {cp.order_index === checkpoints.length ? (
@@ -238,7 +327,7 @@ export default function MapTracker({ checkpoints = [], totalGroupKm = 0, targetD
                     {cp.target_km} km
                   </span>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
