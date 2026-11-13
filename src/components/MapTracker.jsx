@@ -186,10 +186,10 @@ export default function MapTracker({ checkpoints = [], totalGroupKm = 0, targetD
           center={route.runnerPosition}
           zoom={4}
           scrollWheelZoom={false}
+          attributionControl={false}
           className="h-full w-full z-10"
         >
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
             className="idarun-dark-tiles"
           />
@@ -288,6 +288,14 @@ export default function MapTracker({ checkpoints = [], totalGroupKm = 0, targetD
             </Popup>
           </Marker>
         </MapContainer>
+        <a
+          href="https://www.openstreetmap.org/copyright"
+          target="_blank"
+          rel="noreferrer"
+          className="absolute bottom-1.5 right-2 z-[400] rounded bg-obsidian-900/75 px-1.5 py-0.5 text-[10px] text-sand-500 hover:text-sand-300 transition-colors"
+        >
+          © OpenStreetMap
+        </a>
       </div>
 
       {/* Horizontal Checkpoint Milestones */}
