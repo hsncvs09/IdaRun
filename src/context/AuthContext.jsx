@@ -6,6 +6,29 @@ import { useToast } from "../components/ToastProvider";
 
 const AuthContext = createContext(null);
 const DEMO_SESSION_KEY = "idarun_demo_session_v1";
+const oauthPromisesByCode = new Map();
+
+function exchangeStravaCodeOnce(code) {
+  if (!oauthPromisesByCode.has(code)) {
+    const p = (async () => {
+      const { data, error } = await supabase.functions.invoke("strava-oauth", {
+        body: { action: "exchange", code },
+      });
+      if (error || data?.error) {
+        throw new Error(data?.error || error?.message || "Strava girişi başarısız.");
+      }
+
+      const { data: otpData, error: otpErr } = await supabase.auth.verifyOtp({
+        token_hash: data.token_hash,
+        type: "magiclink",
+      });
+      if (otpErr) throw otpErr;
+      return otpData;
+    })();
+    oauthPromisesByCode.set(code, p);
+  }
+  return oauthPromisesByCode.get(code);
+}
 
 export function AuthProvider({ children }) {
   const { showToast } = useToast();
@@ -36,7 +59,27 @@ export function AuthProvider({ children }) {
 
     async function bootstrap() {
       try {
-        // 1. Check demo session
+        const params = new URLSearchParams(window.location.search);
+        const stravaCode = params.get("code");
+
+        // 1. Handle Strava OAuth callback (?code=...) before demo fallback
+        if (stravaCode && isSupabaseConfigured && supabase) {
+          localStorage.removeItem(DEMO_SESSION_KEY);
+          setOauthProcessing(true);
+
+          const otpData = await exchangeStravaCodeOnce(stravaCode);
+          window.history.replaceState({}, document.title, window.location.pathname);
+
+          if (mounted && otpData?.user) {
+            setIsDemo(false);
+            setUser(otpData.user);
+            await loadSupabaseProfile(otpData.user);
+            showToast("Strava hesabınız bağlandı.", "success");
+          }
+          return;
+        }
+
+        // 2. Check demo session
         const savedDemo = localStorage.getItem(DEMO_SESSION_KEY);
         if (savedDemo) {
           const parsed = JSON.parse(savedDemo);
@@ -51,46 +94,20 @@ export function AuthProvider({ children }) {
           }
         }
 
-        // 2. Check real Supabase session + Strava OAuth callback (?code=...)
+        // 3. Check existing Supabase session
         if (isSupabaseConfigured && supabase) {
-          const params = new URLSearchParams(window.location.search);
-          const stravaCode = params.get("code");
-
-          if (stravaCode) {
-            setOauthProcessing(true);
-            window.history.replaceState({}, document.title, window.location.pathname);
-
-            const { data, error } = await supabase.functions.invoke("strava-oauth", {
-              body: { action: "exchange", code: stravaCode },
-            });
-            if (error || data?.error) {
-              throw new Error(data?.error || error?.message || "Strava girişi başarısız.");
-            }
-
-            const { data: otpData, error: otpErr } = await supabase.auth.verifyOtp({
-              token_hash: data.token_hash,
-              type: "magiclink",
-            });
-            if (otpErr) throw otpErr;
-
-            if (mounted && otpData?.user) {
-              setIsDemo(false);
-              setUser(otpData.user);
-              await loadSupabaseProfile(otpData.user);
-              showToast("Strava hesabınız bağlandı.", "success");
-            }
-          } else {
-            const { data: sessionData } = await supabase.auth.getSession();
-            const currentUser = sessionData?.session?.user || null;
-            if (mounted && currentUser) {
-              setIsDemo(false);
-              setUser(currentUser);
-              await loadSupabaseProfile(currentUser);
-            }
+          const { data: sessionData } = await supabase.auth.getSession();
+          const currentUser = sessionData?.session?.user || null;
+          if (mounted && currentUser) {
+            setIsDemo(false);
+            setUser(currentUser);
+            await loadSupabaseProfile(currentUser);
           }
         }
       } catch (err) {
-        showToast(err.message || "Oturum başlatılırken bir hata oluştu.", "error");
+        if (mounted) {
+          showToast(err.message || "Oturum başlatılırken bir hata oluştu.", "error");
+        }
       } finally {
         if (mounted) {
           setOauthProcessing(false);
