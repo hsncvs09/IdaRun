@@ -1,0 +1,168 @@
+import React from "react";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, act } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import Leaderboard from "../Leaderboard";
+import Navbar from "../Navbar";
+
+const mockMap = {
+  attributionControl: { remove: vi.fn() },
+  fitBounds: vi.fn(),
+  flyTo: vi.fn(),
+  closePopup: vi.fn(),
+};
+
+const mockOpenPopup = vi.fn();
+
+vi.mock("react-leaflet", async () => {
+  const ReactMod = await import("react");
+  return {
+    MapContainer: ({ children }) => <div data-testid="map-container">{children}</div>,
+    TileLayer: () => null,
+    Polyline: () => null,
+    Popup: ({ children }) => <div>{children}</div>,
+    Marker: ReactMod.forwardRef(({ children }, ref) => {
+      ReactMod.useImperativeHandle(ref, () => ({
+        openPopup: mockOpenPopup,
+      }));
+      return <div>{children}</div>;
+    }),
+    useMap: () => mockMap,
+  };
+});
+
+vi.mock("../../context/AuthContext", () => ({
+  useAuth: () => ({
+    profile: { id: "u1", role: "member", full_name: "Test Koşucu" },
+    isDemo: true,
+    logout: vi.fn(),
+  }),
+}));
+
+import MapTracker from "../MapTracker";
+
+describe("Leaderboard varsayılan dönem seçimi", () => {
+  it("ilk açılışta 'Bu Hafta' seçili gelir", () => {
+    const now = new Date();
+    const lastMonth = new Date(now);
+    lastMonth.setDate(now.getDate() - 40);
+
+    const profiles = [
+      { id: "u1", full_name: "Bu Hafta Koşucusu", role: "member" },
+      { id: "u2", full_name: "Eski Koşucu", role: "member" },
+    ];
+    const activities = [
+      {
+        id: "a1",
+        user_id: "u1",
+        distance_meters: 10000,
+        moving_time_seconds: 3000,
+        total_elevation_gain: 50,
+        start_date: now.toISOString(),
+        is_valid: true,
+      },
+      {
+        id: "a2",
+        user_id: "u2",
+        distance_meters: 50000,
+        moving_time_seconds: 15000,
+        total_elevation_gain: 200,
+        start_date: lastMonth.toISOString(),
+        is_valid: true,
+      },
+    ];
+
+    render(<Leaderboard profiles={profiles} activities={activities} currentUserId="u1" />);
+
+    const thisWeekBtn = screen.getByRole("button", { name: "Bu Hafta" });
+    const allTimeBtn = screen.getByRole("button", { name: "Tüm Zamanlar" });
+
+    expect(thisWeekBtn.className).toContain("bg-obsidian-700");
+    expect(allTimeBtn.className).not.toContain("bg-obsidian-700");
+
+    // Bu Hafta seçiliyken u1 10.0 km ile 0.0 km olan u2'nin önünde olmalı
+    const distanceTexts = screen.getAllByText(/\d+\.\d km/);
+    expect(distanceTexts[0].textContent).toBe("10.0 km");
+
+    // Tüm Zamanlar'a geçince 50.0 km öne geçmeli
+    fireEvent.click(allTimeBtn);
+    expect(allTimeBtn.className).toContain("bg-obsidian-700");
+    const updatedDistances = screen.getAllByText(/\d+\.\d km/);
+    expect(updatedDistances[0].textContent).toBe("50.0 km");
+  });
+});
+
+describe("MapTracker Tüm Rota davranışı", () => {
+  const checkpoints = [
+    { id: "cp-1", order_index: 1, name: "Akçay", country: "Türkiye", target_km: 0, lat: 39.58, lng: 26.92 },
+    { id: "cp-2", order_index: 2, name: "İstanbul", country: "Türkiye", target_km: 380, lat: 41.0, lng: 28.97 },
+    { id: "cp-3", order_index: 3, name: "Tokyo", country: "Japonya", target_km: 9500, lat: 35.67, lng: 139.65 },
+  ];
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockMap.fitBounds.mockClear();
+    mockMap.flyTo.mockClear();
+    mockMap.closePopup.mockClear();
+    mockOpenPopup.mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("durak seçildikten sonra Tüm Rota butonuna basıldığında açık durak kartını (popup) kapatır", () => {
+    render(<MapTracker checkpoints={checkpoints} totalGroupKm={120} targetDistanceKm={9500} />);
+
+    // İlk yüklemede otomatik fitBounds çalışır, closePopup çağrılmaz
+    expect(mockMap.fitBounds).toHaveBeenCalledTimes(1);
+    expect(mockMap.closePopup).not.toHaveBeenCalled();
+
+    // Bir durak seçilir
+    const istanbulBtn = screen.getByRole("button", { name: /İstanbul/i });
+    fireEvent.click(istanbulBtn);
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    expect(mockMap.flyTo).toHaveBeenCalledTimes(1);
+    expect(mockOpenPopup).toHaveBeenCalledTimes(1);
+
+    // Tüm Rota butonuna tıklanınca popup kapatılmalı ve fitBounds tekrar çalışmalı
+    const fitAllBtn = screen.getByRole("button", { name: /Tüm Rota/i });
+    fireEvent.click(fitAllBtn);
+    expect(mockMap.closePopup).toHaveBeenCalledTimes(1);
+    expect(mockMap.fitBounds).toHaveBeenCalledTimes(2);
+  });
+
+  it("durak seçimi hemen ardından Tüm Rota'ya basılırsa bekleyen popup açma zamanlayıcısını iptal eder", () => {
+    render(<MapTracker checkpoints={checkpoints} totalGroupKm={120} targetDistanceKm={9500} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /İstanbul/i }));
+    // 350ms dolmadan Tüm Rota'ya basılır
+    fireEvent.click(screen.getByRole("button", { name: /Tüm Rota/i }));
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(mockMap.closePopup).toHaveBeenCalledTimes(1);
+    expect(mockOpenPopup).not.toHaveBeenCalled();
+  });
+});
+
+describe("Navbar iPhone PWA safe-area desteği", () => {
+  it("üst başlık çubuğunda env(safe-area-inset-top) boşluğu ve gerekli kontroller bulunur", () => {
+    const { container } = render(
+      <MemoryRouter>
+        <Navbar onSync={vi.fn()} syncing={false} />
+      </MemoryRouter>
+    );
+
+    const header = container.querySelector("header");
+    expect(header).not.toBeNull();
+    expect(header.className).toContain("pt-[env(safe-area-inset-top)]");
+    expect(screen.getByText("IdaRun")).toBeInTheDocument();
+    expect(document.getElementById("navbar-sync-btn")).toBeInTheDocument();
+    expect(document.getElementById("logout-btn")).toBeInTheDocument();
+  });
+});

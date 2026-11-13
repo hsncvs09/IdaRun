@@ -12,7 +12,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-obsidian-900 flex flex-col justify-between px-4 py-8 sm:px-6">
+    <div className="min-h-screen bg-obsidian-900 flex flex-col justify-between px-4 pt-[calc(2rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-6">
       <div className="mx-auto w-full max-w-4xl flex-1 flex flex-col justify-center">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           {/* Left Hero */}

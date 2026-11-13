@@ -7,11 +7,18 @@ import { interpolatePositionOnRoute } from "../lib/routeMath";
 function MapController({ checkpoints, runnerPosition, focusTarget, fitTrigger, markerRefs, runnerMarkerRef }) {
   const map = useMap();
   const hasFittedOnce = useRef(false);
+  const lastFitTrigger = useRef(0);
 
   useEffect(() => {
     map.attributionControl?.remove();
     if (!checkpoints || checkpoints.length === 0) return;
-    if (hasFittedOnce.current && fitTrigger === 0) return;
+    const isExplicitFitAll = fitTrigger !== lastFitTrigger.current;
+    if (hasFittedOnce.current && !isExplicitFitAll) return;
+
+    if (isExplicitFitAll) {
+      lastFitTrigger.current = fitTrigger;
+      map.closePopup();
+    }
 
     const coords = checkpoints.map((c) => [c.lat, c.lng]);
     if (runnerPosition) coords.push(runnerPosition);
@@ -24,18 +31,19 @@ function MapController({ checkpoints, runnerPosition, focusTarget, fitTrigger, m
     if (!focusTarget) return;
     if (focusTarget.type === "runner" && runnerPosition) {
       map.flyTo(runnerPosition, 7, { duration: 0.9 });
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         runnerMarkerRef.current?.openPopup();
       }, 350);
-      return;
+      return () => clearTimeout(timer);
     }
 
     if (focusTarget.type === "checkpoint" && focusTarget.checkpoint) {
       const cp = focusTarget.checkpoint;
       map.flyTo([cp.lat, cp.lng], 7, { duration: 0.9 });
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         markerRefs.current?.[cp.id]?.openPopup();
       }, 350);
+      return () => clearTimeout(timer);
     }
   }, [focusTarget, runnerPosition, map, markerRefs, runnerMarkerRef]);
 

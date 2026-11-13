@@ -22,7 +22,7 @@ export default function Navbar({ onSync, syncing }) {
   return (
     <>
       {/* Top Desktop / Tablet Header */}
-      <header className="sticky top-0 z-40 border-b border-obsidian-700 bg-obsidian-900/90 backdrop-blur-md">
+      <header className="sticky top-0 z-40 border-b border-obsidian-700 bg-obsidian-900/90 backdrop-blur-md pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-3">
             <img

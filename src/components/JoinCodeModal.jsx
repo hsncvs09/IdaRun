@@ -22,7 +22,7 @@ export default function JoinCodeModal() {
   };
 
   return (
-    <div className="min-h-screen bg-obsidian-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-obsidian-900 flex items-center justify-center px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))]">
       <div className="w-full max-w-md rounded-2xl border border-obsidian-600 bg-obsidian-800 p-6 sm:p-8 shadow-2xl">
         <div className="flex items-center gap-3 mb-6">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-ember-500/15 text-ember-400 border border-ember-500/30">

@@ -16,7 +16,7 @@ const METRICS = [
 ];
 
 export default function Leaderboard({ profiles = [], activities = [], currentUserId }) {
-  const [period, setPeriod] = useState("all");
+  const [period, setPeriod] = useState("week");
   const [sortBy, setSortBy] = useState("distance");
 
   const rows = useMemo(

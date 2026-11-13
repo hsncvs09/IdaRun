@@ -45,7 +45,7 @@ export function ToastProvider({ children }) {
       {children}
       <div
         aria-live="polite"
-        className="fixed top-4 right-4 z-[9999] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2.5 pointer-events-none"
+        className="fixed top-[calc(1rem+env(safe-area-inset-top))] right-4 z-[9999] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2.5 pointer-events-none"
       >
         {toasts.map((toast) => {
           const style = STYLES[toast.type] || STYLES.info;
