@@ -30,6 +30,10 @@
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
 }
 
+.idarun-dark-tiles {
+  filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(92%) saturate(65%);
+}
+
 .leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
   background: #121821 !important;

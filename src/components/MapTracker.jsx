@@ -121,8 +121,9 @@ export default function MapTracker({ checkpoints = [], totalGroupKm = 0, targetD
           className="h-full w-full z-10"
         >
           <TileLayer
-            attribution='&copy; <a href="https://carto.com/">CARTO</a> &copy; OpenStreetMap'
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+            className="idarun-dark-tiles"
           />
 
           <FitRouteBounds checkpoints={checkpoints} runnerPosition={route.runnerPosition} />

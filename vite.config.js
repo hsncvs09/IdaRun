@@ -13,10 +13,10 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/[abc]\.basemaps\.cartocdn\.com\/.*/i,
+            urlPattern: /^https:\/\/tile\.openstreetmap\.org\/.*/i,
             handler: "CacheFirst",
             options: {
-              cacheName: "carto-map-tiles",
+              cacheName: "osm-map-tiles",
               expiration: {
                 maxEntries: 150,
                 maxAgeSeconds: 60 * 60 * 24 * 14,
