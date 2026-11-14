@@ -1,0 +1,38 @@
+name: Strava Scheduled Batch Sync & Keep-Alive
+
+on:
+  schedule:
+    # Her 30 dakikada bir çalışarak Admin Paneldeki çalışma saatine göre
+    # toplu Strava senkronizasyonunu tetikler ve Supabase'i aktif tutar.
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+jobs:
+  batch-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger strava-batch-sync Edge Function
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "SUPABASE_URL veya CRON_SECRET GitHub Secrets içinde tanımlı değil."
+            exit 1
+          fi
+
+          BASE_URL="${SUPABASE_URL%/}"
+          RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${BASE_URL}/functions/v1/strava-batch-sync" \
+            -H "Content-Type: application/json" \
+            -H "x-cron-secret: ${CRON_SECRET}" \
+            -d '{"trigger":"scheduled"}')
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            exit 1
+          fi

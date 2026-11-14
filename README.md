@@ -34,11 +34,17 @@ Akçay'dan Tokyo'ya (~9.500 km) uzanan kolektif koşu hedefi için **React (Vite
    ```
 
 ## Supabase Kurulumu (Canlı Mod)
-1. `supabase/migrations/001_initial_schema.sql` dosyasını Supabase SQL Editor veya CLI (`supabase db push`) ile çalıştırın.
-2. Edge Functions gizli anahtarlarını tanımlayın:
+1. `supabase/migrations/001_initial_schema.sql` ve `supabase/migrations/002_auto_sync_settings.sql` dosyalarını Supabase SQL Editor veya CLI (`supabase db push`) ile çalıştırın.
+2. Edge Functions gizli anahtarlarını tanımlayın ve fonksiyonları deploy edin:
    ```bash
-   supabase secrets set STRAVA_CLIENT_ID=... STRAVA_CLIENT_SECRET=...
+   supabase secrets set STRAVA_CLIENT_ID=... STRAVA_CLIENT_SECRET=... CRON_SECRET=...
    supabase functions deploy strava-oauth
    supabase functions deploy strava-sync
+   supabase functions deploy strava-batch-sync
    ```
 3. Strava API ayarlarında **Authorization Callback Domain** alanını uygulamanızın alan adına ayarlayın.
+4. Otomatik toplu senkronizasyon ve Supabase keep-alive için GitHub Repository **Settings → Secrets and variables → Actions** altına aşağıdaki iki gizli anahtarı ekleyin:
+   - `SUPABASE_URL`: `https://<proje-id>.supabase.co`
+   - `CRON_SECRET`: Supabase'e tanımladığınız aynı `CRON_SECRET` değeri
+   (`.github/workflows/strava-batch-sync.yml` her 30 dakikada bir çalışarak Admin Panelindeki parametreye göre toplu senkronizasyonu tetikler.)
+

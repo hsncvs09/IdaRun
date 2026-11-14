@@ -280,3 +280,49 @@ export function buildLeaderboard(profiles = [], activities = [], { period = "all
 
   return rows;
 }
+
+/**
+ * Admin paneldeki koşu takvimi ve senkronizasyon parametrelerine göre
+ * otomatik toplu senkronizasyonun çalışacağı gün/saat özetini hesaplar.
+ */
+export function computeScheduledSyncPreview({
+  run_schedule = [],
+  auto_sync_enabled = true,
+  auto_sync_mode = "after_schedule",
+  auto_sync_delay_minutes = 60,
+  auto_sync_time = "22:30",
+} = {}) {
+  if (!auto_sync_enabled) return [];
+
+  if (auto_sync_mode === "fixed_daily") {
+    return [`Her gün ${auto_sync_time || "22:30"}`];
+  }
+
+  const delay = Math.max(0, Math.min(720, Number(auto_sync_delay_minutes) || 0));
+  const enabledWindows = (run_schedule || []).filter((w) => w.enabled !== false);
+
+  return enabledWindows.map((win) => {
+    const endMinutes = parseTimeToMinutes(win.end || "21:30");
+    const totalMinutes = endMinutes + delay;
+    const dayOffset = Math.floor(totalMinutes / 1440);
+    const wrappedMinutes = ((totalMinutes % 1440) + 1440) % 1440;
+    const targetDay = (Number(win.day) + dayOffset) % 7;
+    const hh = String(Math.floor(wrappedMinutes / 60)).padStart(2, "0");
+    const mm = String(wrappedMinutes % 60).padStart(2, "0");
+    return `${DAY_NAMES_TR[targetDay]} ${hh}:${mm}`;
+  });
+}
+
+export function formatSyncTimestamp(isoString) {
+  if (!isoString) return null;
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat("tr-TR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
+}
+

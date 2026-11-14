@@ -166,3 +166,107 @@ describe("Navbar iPhone PWA safe-area desteği", () => {
     expect(document.getElementById("logout-btn")).toBeInTheDocument();
   });
 });
+
+describe("AdminPanel toplu senkronizasyon ve zamanlama parametreleri", () => {
+  it("admin manuel toplu senkronizasyon butonunu çalıştırır ve zamanlama önizlemesini gösterir", async () => {
+    const { default: AdminPanel } = await import("../AdminPanel");
+    const { ToastProvider } = await import("../ToastProvider");
+    const dataService = await import("../../lib/dataService");
+    const batchSpy = vi.spyOn(dataService, "triggerBatchSync").mockResolvedValue({
+      skipped: false,
+      syncedUsers: 2,
+      totalUsers: 2,
+      syncedCount: 3,
+      failedCount: 0,
+    });
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
+
+    const settings = {
+      challenge_title: "IdaRun Test",
+      target_distance_km: 9500,
+      join_code: "IDARUN2026",
+      challenge_start_date: "2026-01-01T00:00:00+03:00",
+      timezone: "Europe/Istanbul",
+      enforce_schedule: true,
+      auto_sync_enabled: true,
+      auto_sync_mode: "after_schedule",
+      auto_sync_delay_minutes: 60,
+      auto_sync_time: "22:30",
+      last_batch_sync_at: "2026-11-10T19:30:00Z",
+      run_schedule: [
+        { id: "tue-eve", day: 2, label: "Salı Akşam", start: "19:00", end: "21:30", enabled: true },
+      ],
+    };
+
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <AdminPanel
+            settings={settings}
+            checkpoints={[]}
+            activities={[]}
+            profiles={[]}
+            isDemo={true}
+            onRefresh={onRefresh}
+          />
+        </ToastProvider>
+      </MemoryRouter>
+    );
+
+    const batchBtn = document.getElementById("admin-batch-sync-btn");
+    expect(batchBtn).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(batchBtn);
+    });
+
+    expect(batchSpy).toHaveBeenCalledWith(true);
+    expect(onRefresh).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Koşu Takvimi/i }));
+    expect(screen.getByText("Otomatik Toplu Strava Senkronizasyonu")).toBeInTheDocument();
+    expect(screen.getByText("Salı 22:30")).toBeInTheDocument();
+
+    batchSpy.mockRestore();
+  });
+});
+
+describe("Dashboard son senkronizasyon tarihi", () => {
+  it("anasayfada son senkronizasyon tarihini gösterir", async () => {
+    const { default: Dashboard } = await import("../../pages/Dashboard");
+    const { ToastProvider } = await import("../ToastProvider");
+    const dataService = await import("../../lib/dataService");
+
+    const fetchSpy = vi.spyOn(dataService, "fetchDashboardBundle").mockResolvedValue({
+      settings: {
+        challenge_title: "Akçay'dan Tokyo'ya Kolektif Koşu",
+        target_distance_km: 9500,
+        last_sync_at: "2026-11-10T19:30:00Z",
+        run_schedule: [],
+      },
+      checkpoints: [
+        { id: "cp-1", order_index: 1, name: "Akçay", country: "Türkiye", target_km: 0, lat: 39.58, lng: 26.92 },
+      ],
+      profiles: [{ id: "u1", full_name: "Test Koşucu", role: "member" }],
+      activities: [],
+    });
+
+    await act(async () => {
+      render(
+        <MemoryRouter>
+          <ToastProvider>
+            <Dashboard />
+          </ToastProvider>
+        </MemoryRouter>
+      );
+    });
+
+    const indicator = screen.getByTestId("last-sync-indicator");
+    expect(indicator).toBeInTheDocument();
+    expect(indicator.textContent).toContain("Son senkronizasyon:");
+    expect(indicator.textContent).not.toContain("Henüz yapılmadı");
+
+    fetchSpy.mockRestore();
+  });
+});
+

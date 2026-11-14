@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Settings,
   Clock,
@@ -11,14 +11,23 @@ import {
   CheckCircle,
   Ban,
   Edit3,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
-import { DAY_NAMES_TR, formatDuration, formatPace } from "../lib/routeMath";
+import {
+  DAY_NAMES_TR,
+  computeScheduledSyncPreview,
+  formatDuration,
+  formatPace,
+  formatSyncTimestamp,
+} from "../lib/routeMath";
 import {
   updateGroupSettings,
   saveCheckpoint,
   deleteCheckpoint,
   toggleActivityValidity,
   deleteActivity,
+  triggerBatchSync,
 } from "../lib/dataService";
 import { resetDemoStore } from "../lib/demoData";
 import { useToast } from "./ToastProvider";
@@ -52,6 +61,7 @@ export default function AdminPanel({
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState("settings");
   const [saving, setSaving] = useState(false);
+  const [batchSyncing, setBatchSyncing] = useState(false);
 
   // Settings form state
   const [challengeTitle, setChallengeTitle] = useState(settings?.challenge_title || "");
@@ -65,6 +75,23 @@ export default function AdminPanel({
   const [enforceSchedule, setEnforceSchedule] = useState(settings?.enforce_schedule ?? true);
   const [scheduleList, setScheduleList] = useState(settings?.run_schedule || []);
   const [newWin, setNewWin] = useState({ day: 6, label: "Cumartesi Sabah", start: "08:00", end: "10:30" });
+
+  // Auto batch sync schedule state
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(settings?.auto_sync_enabled ?? true);
+  const [autoSyncMode, setAutoSyncMode] = useState(settings?.auto_sync_mode || "after_schedule");
+  const [autoSyncDelayMinutes, setAutoSyncDelayMinutes] = useState(
+    settings?.auto_sync_delay_minutes ?? 60
+  );
+  const [autoSyncTime, setAutoSyncTime] = useState(settings?.auto_sync_time || "22:30");
+
+  useEffect(() => {
+    setEnforceSchedule(settings?.enforce_schedule ?? true);
+    setScheduleList(settings?.run_schedule || []);
+    setAutoSyncEnabled(settings?.auto_sync_enabled ?? true);
+    setAutoSyncMode(settings?.auto_sync_mode || "after_schedule");
+    setAutoSyncDelayMinutes(settings?.auto_sync_delay_minutes ?? 60);
+    setAutoSyncTime(settings?.auto_sync_time || "22:30");
+  }, [settings]);
 
   // Checkpoint form state
   const [cpForm, setCpForm] = useState({
@@ -115,6 +142,46 @@ export default function AdminPanel({
       showToast(err.message || "Takvim kaydedilemedi.", "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveAutoSync = async (e) => {
+    e.preventDefault();
+    try {
+      setSaving(true);
+      const clampedDelay = Math.max(0, Math.min(720, Number(autoSyncDelayMinutes) || 0));
+      await updateGroupSettings(
+        {
+          auto_sync_enabled: autoSyncEnabled,
+          auto_sync_mode: autoSyncMode,
+          auto_sync_delay_minutes: clampedDelay,
+          auto_sync_time: autoSyncTime || "22:30",
+        },
+        isDemo
+      );
+      await onRefresh();
+      showToast("Otomatik toplu senkronizasyon parametreleri kaydedildi.", "success");
+    } catch (err) {
+      showToast(err.message || "Senkronizasyon ayarları kaydedilemedi.", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleManualBatchSync = async () => {
+    try {
+      setBatchSyncing(true);
+      const res = await triggerBatchSync(isDemo);
+      await onRefresh();
+      const failNote = res.failedCount > 0 ? ` (${res.failedCount} üyede hata)` : "";
+      showToast(
+        `Toplu senkronizasyon tamamlandı: ${res.syncedUsers}/${res.totalUsers} üye · ${res.syncedCount} koşu işlendi${failNote}.`,
+        res.failedCount > 0 ? "info" : "success"
+      );
+    } catch (err) {
+      showToast(err.message || "Toplu senkronizasyon çalıştırılamadı.", "error");
+    } finally {
+      setBatchSyncing(false);
     }
   };
 
@@ -207,6 +274,17 @@ export default function AdminPanel({
     return act.name.toLowerCase().includes(q) || runner.includes(q);
   });
 
+  const scheduledPreview = computeScheduledSyncPreview({
+    run_schedule: scheduleList,
+    auto_sync_enabled: autoSyncEnabled,
+    auto_sync_mode: autoSyncMode,
+    auto_sync_delay_minutes: autoSyncDelayMinutes,
+    auto_sync_time: autoSyncTime,
+  });
+  const lastBatchFormatted = formatSyncTimestamp(
+    settings?.last_batch_sync_at || settings?.last_sync_at
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -217,18 +295,41 @@ export default function AdminPanel({
           <p className="text-sm text-sand-400">
             Hedef mesafe, grup takvimi, Akçay → Tokyo durakları ve aktivite denetimi.
           </p>
+          <p className="mt-1 text-xs text-sand-400">
+            Son toplu senkronizasyon:{" "}
+            <span className="font-mono text-sand-200">
+              {lastBatchFormatted || "Henüz çalıştırılmadı"}
+            </span>
+          </p>
         </div>
 
-        {isDemo && (
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           <button
+            id="admin-batch-sync-btn"
             type="button"
-            onClick={handleResetDemo}
-            className="inline-flex items-center gap-2 rounded-xl border border-obsidian-600 bg-obsidian-800 hover:bg-obsidian-700 px-3.5 py-2 text-xs font-semibold text-sand-300 transition-colors self-start"
+            onClick={handleManualBatchSync}
+            disabled={batchSyncing}
+            className="inline-flex items-center gap-2 rounded-xl bg-ember-500 hover:bg-ember-600 disabled:opacity-60 px-4 py-2 text-xs sm:text-sm font-semibold text-white transition-colors"
           >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Demo Verisini Sıfırla
+            {batchSyncing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            {batchSyncing ? "Senkronize Ediliyor..." : "Tüm Üyeleri Senkronize Et"}
           </button>
-        )}
+
+          {isDemo && (
+            <button
+              type="button"
+              onClick={handleResetDemo}
+              className="inline-flex items-center gap-2 rounded-xl border border-obsidian-600 bg-obsidian-800 hover:bg-obsidian-700 px-3.5 py-2 text-xs font-semibold text-sand-300 transition-colors"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Demo Verisini Sıfırla
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -452,6 +553,160 @@ export default function AdminPanel({
             >
               <Plus className="h-4 w-4" />
               Listeye Ekle (Sonra Takvimi Uygula&apos;ya bas)
+            </button>
+          </form>
+
+          <form
+            onSubmit={handleSaveAutoSync}
+            className="rounded-2xl border border-obsidian-700 bg-obsidian-800 p-5 sm:p-6 space-y-4"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h4 className="font-display text-base font-bold text-sand-100">
+                  Otomatik Toplu Strava Senkronizasyonu
+                </h4>
+                <p className="text-xs text-sand-400">
+                  Üyeler uygulamaya girmese bile Strava koşularını otomatik toplar ve Supabase&apos;i aktif tutar.
+                </p>
+              </div>
+              <label className="inline-flex items-center gap-2 cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={autoSyncEnabled}
+                  onChange={(e) => setAutoSyncEnabled(e.target.checked)}
+                  className="h-4 w-4 accent-ember-500"
+                />
+                <span className="text-xs font-semibold text-sand-100">
+                  {autoSyncEnabled ? "Aktif" : "Kapalı"}
+                </span>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setAutoSyncMode("after_schedule")}
+                className={`rounded-xl border p-3.5 text-left transition-colors ${
+                  autoSyncMode === "after_schedule"
+                    ? "border-ember-500/60 bg-ember-500/10"
+                    : "border-obsidian-600 bg-obsidian-900 hover:bg-obsidian-900/70"
+                }`}
+              >
+                <p className="text-sm font-semibold text-sand-100">
+                  Koşu Takvimine Göre (Önerilen)
+                </p>
+                <p className="text-xs text-sand-400 mt-0.5">
+                  Yukarıdaki aktif koşu günleri değiştikçe çalışma anı otomatik güncellenir.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAutoSyncMode("fixed_daily")}
+                className={`rounded-xl border p-3.5 text-left transition-colors ${
+                  autoSyncMode === "fixed_daily"
+                    ? "border-ember-500/60 bg-ember-500/10"
+                    : "border-obsidian-600 bg-obsidian-900 hover:bg-obsidian-900/70"
+                }`}
+              >
+                <p className="text-sm font-semibold text-sand-100">
+                  Her Gün Sabit Saatte
+                </p>
+                <p className="text-xs text-sand-400 mt-0.5">
+                  Koşu takviminden bağımsız olarak her gün belirlenen saatte çalışır.
+                </p>
+              </button>
+            </div>
+
+            {autoSyncMode === "after_schedule" ? (
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-sand-400">
+                  Koşu Bitişinden Kaç Dakika Sonra Çalışsın?
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    max="720"
+                    step="15"
+                    value={autoSyncDelayMinutes}
+                    onChange={(e) => setAutoSyncDelayMinutes(e.target.value)}
+                    className="w-28 rounded-xl border border-obsidian-600 bg-obsidian-900 px-3 py-2 font-mono text-sm text-sand-100 focus:border-ember-500 focus:outline-none"
+                  />
+                  {[30, 60, 90, 120].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setAutoSyncDelayMinutes(preset)}
+                      className={`rounded-lg border px-2.5 py-1.5 font-mono text-xs transition-colors ${
+                        Number(autoSyncDelayMinutes) === preset
+                          ? "border-ember-500/60 bg-ember-500/15 text-ember-400"
+                          : "border-obsidian-600 bg-obsidian-900 text-sand-300 hover:bg-obsidian-700"
+                      }`}
+                    >
+                      +{preset} dk
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-sand-400">
+                  Günlük Çalışma Saati ({settings?.timezone || "Europe/Istanbul"})
+                </label>
+                <input
+                  type="time"
+                  value={autoSyncTime}
+                  onChange={(e) => setAutoSyncTime(e.target.value)}
+                  className="w-40 rounded-xl border border-obsidian-600 bg-obsidian-900 px-3 py-2 font-mono text-sm text-sand-100 focus:border-ember-500 focus:outline-none"
+                />
+              </div>
+            )}
+
+            <div className="rounded-xl border border-obsidian-600 bg-obsidian-900/70 p-3.5 space-y-2">
+              <p className="text-xs font-semibold text-sand-300">
+                Hesaplanan Toplu Senkronizasyon Zamanları ({settings?.timezone || "Europe/Istanbul"})
+              </p>
+              {!autoSyncEnabled ? (
+                <p className="text-xs text-sand-500">
+                  Otomatik toplu senkronizasyon şu an kapalı.
+                </p>
+              ) : scheduledPreview.length === 0 ? (
+                <p className="text-xs text-sand-500">
+                  Aktif koşu penceresi bulunmadığı için zamanlama hesaplanamadı.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {scheduledPreview.map((slot, idx) => (
+                    <span
+                      key={`${slot}-${idx}`}
+                      className="rounded-lg border border-pine-500/30 bg-pine-500/10 px-2.5 py-1 font-mono text-xs text-pine-400"
+                    >
+                      {slot}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {settings?.last_batch_sync_summary && (
+                <p className="text-[11px] text-sand-400 pt-1 border-t border-obsidian-700/70">
+                  Son toplu çalışma:{" "}
+                  <span className="font-mono text-sand-200">
+                    {settings.last_batch_sync_summary.syncedUsers}/
+                    {settings.last_batch_sync_summary.totalUsers} üye ·{" "}
+                    {settings.last_batch_sync_summary.syncedCount} koşu
+                  </span>{" "}
+                  ({settings.last_batch_sync_summary.trigger === "manual" ? "manuel" : "otomatik"})
+                </p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-xl bg-ember-500 hover:bg-ember-600 disabled:opacity-50 px-5 py-2.5 text-sm font-semibold text-white transition-colors"
+            >
+              <Save className="h-4 w-4" />
+              Senkronizasyon Ayarlarını Kaydet
             </button>
           </form>
         </div>

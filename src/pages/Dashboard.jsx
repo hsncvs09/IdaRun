@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarClock, Flame, Mountain, Users, Loader2 } from "lucide-react";
+import { CalendarClock, Flame, Mountain, Users, Loader2, RefreshCw } from "lucide-react";
 import Navbar from "../components/Navbar";
 import MapTracker from "../components/MapTracker";
 import Leaderboard from "../components/Leaderboard";
@@ -7,7 +7,7 @@ import PwaInstallPrompt from "../components/PwaInstallPrompt";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../components/ToastProvider";
 import { fetchDashboardBundle, syncStravaActivities } from "../lib/dataService";
-import { DAY_NAMES_TR } from "../lib/routeMath";
+import { DAY_NAMES_TR, formatSyncTimestamp } from "../lib/routeMath";
 
 export default function Dashboard() {
   const { user, profile, isDemo } = useAuth();
@@ -79,6 +79,9 @@ export default function Dashboard() {
 
   const settings = bundle?.settings;
   const activeSchedule = (settings?.run_schedule || []).filter((w) => w.enabled !== false);
+  const lastSyncFormatted = formatSyncTimestamp(
+    settings?.last_sync_at || settings?.last_batch_sync_at
+  );
 
   return (
     <div className="min-h-screen bg-obsidian-900 pb-24 md:pb-10">
@@ -97,6 +100,18 @@ export default function Dashboard() {
               <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-sand-100 mt-0.5">
                 {settings?.challenge_title || "Akçay'dan Tokyo'ya Kolektif Koşu"}
               </h1>
+              <p
+                data-testid="last-sync-indicator"
+                className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] text-sand-400"
+              >
+                <RefreshCw className="h-3 w-3 text-sand-500" />
+                <span>
+                  Son senkronizasyon:{" "}
+                  <span className="font-mono text-sand-300">
+                    {lastSyncFormatted || "Henüz yapılmadı"}
+                  </span>
+                </span>
+              </p>
             </div>
 
             {activeSchedule.length > 0 && (

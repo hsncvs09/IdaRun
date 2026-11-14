@@ -3,3 +3,7 @@ verify_jwt = false
 
 [functions.strava-sync]
 verify_jwt = false
+
+[functions.strava-batch-sync]
+verify_jwt = false
+

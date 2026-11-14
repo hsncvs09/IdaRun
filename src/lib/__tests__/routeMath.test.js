@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildLeaderboard,
+  computeScheduledSyncPreview,
   formatPace,
+  formatSyncTimestamp,
   interpolatePositionOnRoute,
   isActivityInSchedule,
 } from "../routeMath";
@@ -102,5 +104,50 @@ describe("formatPace & buildLeaderboard", () => {
 
     const byPace = buildLeaderboard(profiles, activities, { period: "all", sortBy: "pace" });
     expect(byPace[0].userId).toBe("u1"); // 5:00/km faster than 6:00/km
+  });
+});
+
+describe("computeScheduledSyncPreview & formatSyncTimestamp", () => {
+  it("koşu takvimi bitişine göre çalışma anlarını ve gece yarısı taşmasını hesaplar", () => {
+    expect(
+      computeScheduledSyncPreview({
+        run_schedule: SAMPLE_SCHEDULE,
+        auto_sync_enabled: true,
+        auto_sync_mode: "after_schedule",
+        auto_sync_delay_minutes: 60,
+      })
+    ).toEqual(["Salı 22:30", "Pazar 12:00"]);
+
+    expect(
+      computeScheduledSyncPreview({
+        run_schedule: [{ id: "late", day: 6, label: "Cts", start: "22:00", end: "23:30", enabled: true }],
+        auto_sync_enabled: true,
+        auto_sync_mode: "after_schedule",
+        auto_sync_delay_minutes: 60,
+      })
+    ).toEqual(["Pazar 00:30"]);
+  });
+
+  it("sabit saat modu ve kapalı durum için doğru önizleme döner", () => {
+    expect(
+      computeScheduledSyncPreview({
+        auto_sync_enabled: true,
+        auto_sync_mode: "fixed_daily",
+        auto_sync_time: "23:15",
+      })
+    ).toEqual(["Her gün 23:15"]);
+
+    expect(
+      computeScheduledSyncPreview({
+        run_schedule: SAMPLE_SCHEDULE,
+        auto_sync_enabled: false,
+      })
+    ).toEqual([]);
+  });
+
+  it("son senkronizasyon tarihini formatlar ve geçersiz değerde null döner", () => {
+    expect(formatSyncTimestamp(null)).toBeNull();
+    expect(formatSyncTimestamp("invalid-date")).toBeNull();
+    expect(formatSyncTimestamp("2026-11-10T16:30:00Z")).toBeTruthy();
   });
 });

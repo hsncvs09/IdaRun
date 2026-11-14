@@ -129,14 +129,89 @@ export async function syncStravaActivities(userId, isDemo) {
       syncedCount++;
     }
 
+    const nowIso = new Date().toISOString();
+    store.groupSettings.last_sync_at = nowIso;
     saveDemoStore(store);
-    return { syncedCount, filteredOutCount, nonRunCount: 0 };
+    return { syncedCount, filteredOutCount, nonRunCount: 0, lastSyncAt: nowIso };
   }
 
   const { data, error } = await supabase.functions.invoke("strava-sync", {
     body: {},
   });
   if (error) throw new Error(error.message || "Strava senkronizasyonu başarısız.");
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
+export async function triggerBatchSync(isDemo) {
+  if (isDemo || !isSupabaseConfigured) {
+    const store = loadDemoStore();
+    const settings = store.groupSettings;
+    const verifiedMembers = store.profiles.filter((p) => p.is_verified !== false);
+    const enabledWindow = settings.run_schedule.find((w) => w.enabled !== false) || {
+      day: 2,
+      start: "19:00",
+    };
+    const [startH, startM] = enabledWindow.start.split(":").map(Number);
+
+    let syncedCount = 0;
+    let filteredOutCount = 0;
+    const nowMs = Date.now();
+
+    verifiedMembers.slice(0, 2).forEach((member, idx) => {
+      const candidateStart = nextRecentDateForDay(enabledWindow.day, startH, startM + 10 + idx * 5);
+      const qualifies =
+        !settings.enforce_schedule ||
+        isActivityInSchedule(candidateStart, settings.run_schedule, settings.timezone);
+
+      if (!qualifies) {
+        filteredOutCount++;
+        return;
+      }
+
+      const uniqueId = nowMs + idx;
+      store.activities.unshift({
+        id: `demo-batch-${uniqueId}`,
+        user_id: member.id,
+        strava_activity_id: uniqueId,
+        name: "Toplu Senkronize Grup Koşusu",
+        distance_meters: 9400 + idx * 1200,
+        moving_time_seconds: 2850 + idx * 320,
+        elapsed_time_seconds: 2920 + idx * 340,
+        total_elevation_gain: 55 + idx * 20,
+        average_speed: 3.3,
+        activity_type: "Run",
+        start_date: candidateStart,
+        start_date_local: candidateStart,
+        is_valid: true,
+      });
+      syncedCount++;
+    });
+
+    const ranAt = new Date().toISOString();
+    const summary = {
+      trigger: "manual",
+      totalUsers: verifiedMembers.length,
+      syncedUsers: verifiedMembers.length,
+      syncedCount,
+      filteredOutCount,
+      nonRunCount: 0,
+      failedCount: 0,
+      ranAt,
+    };
+
+    store.groupSettings.last_sync_at = ranAt;
+    store.groupSettings.last_batch_sync_at = ranAt;
+    store.groupSettings.last_batch_sync_summary = summary;
+    saveDemoStore(store);
+
+    return { skipped: false, ...summary, lastSyncAt: ranAt };
+  }
+
+  const { data, error } = await supabase.functions.invoke("strava-batch-sync", {
+    body: { trigger: "manual" },
+  });
+  if (error) throw new Error(error.message || "Toplu Strava senkronizasyonu başarısız.");
   if (data?.error) throw new Error(data.error);
   return data;
 }
