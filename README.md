@@ -46,5 +46,5 @@ Akçay'dan Tokyo'ya (~9.500 km) uzanan kolektif koşu hedefi için **React (Vite
 4. Otomatik toplu senkronizasyon ve Supabase keep-alive için GitHub Repository **Settings → Secrets and variables → Actions** altına aşağıdaki iki gizli anahtarı ekleyin:
    - `SUPABASE_URL`: `https://<proje-id>.supabase.co`
    - `CRON_SECRET`: Supabase'e tanımladığınız aynı `CRON_SECRET` değeri
-   (`.github/workflows/strava-batch-sync.yml` her 30 dakikada bir çalışarak Admin Panelindeki parametreye göre toplu senkronizasyonu tetikler.)
+   (`.github/workflows/strava-batch-sync.yml` her 15 dakikada bir [07, 22, 37, 52. dakikalarda] çalışarak Admin Panelindeki parametreye göre toplu senkronizasyonu tetikler.)
 

@@ -2,9 +2,9 @@ name: Strava Scheduled Batch Sync & Keep-Alive
 
 on:
   schedule:
-    # Her 30 dakikada bir çalışarak Admin Paneldeki çalışma saatine göre
-    # toplu Strava senkronizasyonunu tetikler ve Supabase'i aktif tutar.
-    - cron: "*/30 * * * *"
+    # Yoğun :00/:30 kuyruklarından kaçınmak için her 15 dakikada bir (dk 07, 22, 37, 52)
+    # çalışarak Admin Paneldeki çalışma saatine göre toplu senkronizasyonu tetikler.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
 
 jobs:
