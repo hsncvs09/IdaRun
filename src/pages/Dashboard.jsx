@@ -4,6 +4,7 @@ import Navbar from "../components/Navbar";
 import MapTracker from "../components/MapTracker";
 import Leaderboard from "../components/Leaderboard";
 import PwaInstallPrompt from "../components/PwaInstallPrompt";
+import { PoweredByStravaBadge } from "../components/StravaBranding";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../components/ToastProvider";
 import { fetchDashboardBundle, syncStravaActivities } from "../lib/dataService";
@@ -188,6 +189,13 @@ export default function Dashboard() {
           activities={bundle?.activities || []}
           currentUserId={profile?.id || user?.id}
         />
+
+        <footer className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-sand-500">
+          <span>
+            IdaRun · Kulüp içi ortak koşu hedefi takibi. Strava verileri üye açık rızasıyla senkronize edilir.
+          </span>
+          <PoweredByStravaBadge />
+        </footer>
       </main>
     </div>
   );

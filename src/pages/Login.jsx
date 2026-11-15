@@ -2,6 +2,7 @@ import React from "react";
 import { Activity, MapPin, Shield, Trophy, KeyRound, Loader2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { buildStravaAuthUrl, isStravaConfigured, isSupabaseConfigured } from "../lib/supabase";
+import { ConnectWithStravaButton, PoweredByStravaBadge } from "../components/StravaBranding";
 
 export default function Login() {
   const { loginAsDemo, oauthProcessing } = useAuth();
@@ -86,16 +87,17 @@ export default function Login() {
               </div>
             ) : (
               <>
-                <button
+                <ConnectWithStravaButton
                   id="strava-login-btn"
-                  type="button"
                   onClick={handleStravaLogin}
                   disabled={!canUseRealStrava}
-                  className="w-full flex items-center justify-center gap-2.5 rounded-xl bg-[#FC4C02] hover:bg-[#e34402] disabled:opacity-40 disabled:cursor-not-allowed px-4 py-3.5 text-sm font-bold text-white transition-colors shadow-lg"
-                >
-                  <Activity className="h-5 w-5" />
-                  Strava ile Bağlan
-                </button>
+                />
+
+                <p className="text-[11px] text-sand-400 leading-relaxed">
+                  Giriş yaparak yalnızca kulüp takvimindeki koşu özetlerinizin (mesafe, süre,
+                  irtifa) kapalı grup hedefi için senkronize edilmesini onaylarsınız. İstediğiniz
+                  an Profil sayfanızdan bağlantıyı kesebilir ve verilerinizi silebilirsiniz.
+                </p>
 
                 {!canUseRealStrava && (
                   <p className="text-[11px] text-sand-400 leading-relaxed rounded-lg border border-obsidian-700 bg-obsidian-900/70 px-3 py-2">
@@ -152,8 +154,11 @@ export default function Login() {
         </div>
       </div>
 
-      <footer className="mx-auto w-full max-w-4xl pt-6 text-center text-xs text-sand-500">
-        IdaRun PWA · Koşu verileri Strava API v3 standartlarına göre senkronize edilir.
+      <footer className="mx-auto w-full max-w-4xl pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left text-xs text-sand-500">
+        <span>
+          IdaRun PWA · Bağımsız koşu kulübü uygulamasıdır, Strava tarafından sponsor edilmemektedir.
+        </span>
+        <PoweredByStravaBadge />
       </footer>
     </div>
   );

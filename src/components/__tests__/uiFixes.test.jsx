@@ -270,3 +270,73 @@ describe("Dashboard son senkronizasyon tarihi", () => {
   });
 });
 
+describe("Strava Marka Yönergeleri (Brand Guidelines) uyumluluğu", () => {
+  it("Login sayfasında resmi 'Connect with STRAVA' butonu ve 'Powered by Strava' rozeti bulunur", async () => {
+    const { default: Login } = await import("../../pages/Login");
+
+    render(
+      <MemoryRouter>
+        <Login />
+      </MemoryRouter>
+    );
+
+    const connectBtn = document.getElementById("strava-login-btn");
+    expect(connectBtn).toBeInTheDocument();
+    expect(connectBtn.textContent).toContain("Connect with");
+    expect(connectBtn.textContent).toContain("STRAVA");
+    expect(connectBtn.className).toContain("bg-[#FC5200]");
+
+    const badge = screen.getByTestId("powered-by-strava-badge");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveAttribute("href", "https://www.strava.com");
+  });
+
+  it("Profile sayfasında her aktivite için 'View on Strava' bağlantısı ve bağlantı kesme kontrolü bulunur", async () => {
+    const { default: Profile } = await import("../../pages/Profile");
+    const { ToastProvider } = await import("../ToastProvider");
+    const dataService = await import("../../lib/dataService");
+
+    const fetchSpy = vi.spyOn(dataService, "fetchDashboardBundle").mockResolvedValue({
+      settings: {},
+      checkpoints: [],
+      profiles: [{ id: "u1", full_name: "Test Koşucu", role: "member", strava_athlete_id: 100101 }],
+      activities: [
+        {
+          id: "act-1",
+          user_id: "u1",
+          strava_activity_id: 90001,
+          name: "Kazdağları Uzun Pazar Koşusu",
+          distance_meters: 24500,
+          moving_time_seconds: 7350,
+          total_elevation_gain: 540,
+          activity_type: "TrailRun",
+          start_date: "2026-11-10T08:00:00Z",
+          is_valid: true,
+        },
+      ],
+    });
+
+    await act(async () => {
+      render(
+        <MemoryRouter>
+          <ToastProvider>
+            <Profile />
+          </ToastProvider>
+        </MemoryRouter>
+      );
+    });
+
+    const viewLink = screen.getByTestId("view-on-strava-90001");
+    expect(viewLink).toBeInTheDocument();
+    expect(viewLink.textContent).toContain("View on Strava");
+    expect(viewLink).toHaveAttribute("href", "https://www.strava.com/activities/90001");
+
+    const disconnectBtn = document.getElementById("strava-disconnect-btn");
+    expect(disconnectBtn).toBeInTheDocument();
+    fireEvent.click(disconnectBtn);
+    expect(document.getElementById("strava-disconnect-confirm-btn")).toBeInTheDocument();
+
+    fetchSpy.mockRestore();
+  });
+});
+

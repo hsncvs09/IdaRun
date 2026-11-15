@@ -31,6 +31,7 @@ import {
 } from "../lib/dataService";
 import { resetDemoStore } from "../lib/demoData";
 import { useToast } from "./ToastProvider";
+import { PoweredByStravaBadge, ViewOnStravaLink } from "./StravaBranding";
 
 const TABS = [
   { id: "settings", label: "Genel & Katılım Kodu", icon: Settings },
@@ -875,9 +876,12 @@ export default function AdminPanel({
       {activeTab === "activities" && (
         <div className="rounded-2xl border border-obsidian-700 bg-obsidian-800 overflow-hidden">
           <div className="border-b border-obsidian-700 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <h3 className="font-display text-base font-bold text-sand-100">
-              Tüm Grup Aktiviteleri ({filteredActivities.length})
-            </h3>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h3 className="font-display text-base font-bold text-sand-100">
+                Tüm Grup Aktiviteleri ({filteredActivities.length})
+              </h3>
+              <PoweredByStravaBadge />
+            </div>
             <input
               type="search"
               placeholder="Koşucu veya koşu adı ara..."
@@ -908,6 +912,7 @@ export default function AdminPanel({
                           Geçersiz
                         </span>
                       )}
+                      <ViewOnStravaLink activityId={act.strava_activity_id} />
                     </div>
                     <p className="text-xs text-sand-400 font-mono mt-0.5 tabular-nums">
                       {(act.distance_meters / 1000).toFixed(2)} km ·{" "}

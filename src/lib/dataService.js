@@ -333,3 +333,25 @@ export async function deleteActivity(activityId, isDemo) {
   const { error } = await supabase.from("activities").delete().eq("id", activityId);
   if (error) throw error;
 }
+
+export async function disconnectStravaAccount(userId, isDemo) {
+  if (isDemo || !isSupabaseConfigured) {
+    const store = loadDemoStore();
+    const beforeCount = store.activities.length;
+    store.activities = store.activities.filter((a) => a.user_id !== userId);
+    const deletedActivities = beforeCount - store.activities.length;
+    saveDemoStore(store);
+    return {
+      revoked: true,
+      deletedActivities,
+      deletedAt: new Date().toISOString(),
+    };
+  }
+
+  const { data, error } = await supabase.functions.invoke("strava-oauth", {
+    body: { action: "disconnect" },
+  });
+  if (error) throw new Error(error.message || "Strava bağlantısı kaldırılamadı.");
+  if (data?.error) throw new Error(data.error);
+  return data;
+}

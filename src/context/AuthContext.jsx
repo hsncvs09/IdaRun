@@ -1,7 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { loadDemoStore, saveDemoStore } from "../lib/demoData";
-import { verifyJoinCode as verifyJoinCodeService } from "../lib/dataService";
+import {
+  verifyJoinCode as verifyJoinCodeService,
+  disconnectStravaAccount,
+} from "../lib/dataService";
 import { useToast } from "../components/ToastProvider";
 
 const AuthContext = createContext(null);
@@ -205,6 +208,22 @@ export function AuthProvider({ children }) {
     showToast("Oturum kapatıldı.", "info");
   }, [showToast]);
 
+  const disconnectStrava = useCallback(async () => {
+    if (!user) throw new Error("Aktif oturum bulunamadı.");
+    const res = await disconnectStravaAccount(user.id, isDemo);
+    localStorage.removeItem(DEMO_SESSION_KEY);
+    if (isSupabaseConfigured && supabase) {
+      await supabase.auth.signOut();
+    }
+    setUser(null);
+    setProfile(null);
+    showToast(
+      `Strava bağlantısı kaldırıldı ve ${res?.deletedActivities ?? 0} aktivite veriniz silindi.`,
+      "info"
+    );
+    return res;
+  }, [user, isDemo, showToast]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -216,6 +235,7 @@ export function AuthProvider({ children }) {
         loginAsDemo,
         verifyJoinCode,
         logout,
+        disconnectStrava,
       }}
     >
       {children}

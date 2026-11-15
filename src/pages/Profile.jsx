@@ -1,17 +1,31 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, Gauge, Mountain, Route, Loader2, CheckCircle2, Ban } from "lucide-react";
+import {
+  Activity,
+  Gauge,
+  Mountain,
+  Route,
+  Loader2,
+  CheckCircle2,
+  Ban,
+  Unplug,
+  ShieldAlert,
+  ExternalLink,
+} from "lucide-react";
 import Navbar from "../components/Navbar";
+import { PoweredByStravaBadge, ViewOnStravaLink } from "../components/StravaBranding";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../components/ToastProvider";
 import { fetchDashboardBundle, syncStravaActivities } from "../lib/dataService";
 import { formatDuration, formatPace } from "../lib/routeMath";
 
 export default function Profile() {
-  const { user, profile, isDemo } = useAuth();
+  const { user, profile, isDemo, disconnectStrava } = useAuth();
   const { showToast } = useToast();
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 
   const loadActivities = useCallback(async () => {
     try {
@@ -39,6 +53,16 @@ export default function Profile() {
       showToast(err.message || "Senkronizasyon hatası.", "error");
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleDisconnectStrava = async () => {
+    try {
+      setDisconnecting(true);
+      await disconnectStrava();
+    } catch (err) {
+      showToast(err.message || "Strava bağlantısı kesilemedi.", "error");
+      setDisconnecting(false);
     }
   };
 
@@ -88,11 +112,26 @@ export default function Profile() {
                   {profile?.role === "admin" ? "Yönetici" : "Onaylı Üye"}
                 </span>
               </div>
-              <p className="text-xs text-sand-400 font-mono mt-1">
-                Strava Sporcu ID: #{profile?.strava_athlete_id || "—"}
-              </p>
+              <div className="flex flex-wrap items-center gap-3 mt-1">
+                <p className="text-xs text-sand-400 font-mono">
+                  Strava Sporcu ID: #{profile?.strava_athlete_id || "—"}
+                </p>
+                {profile?.strava_athlete_id && (
+                  <a
+                    href={`https://www.strava.com/athletes/${profile.strava_athlete_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-[#FC5200] hover:text-[#ff6a24] underline underline-offset-2"
+                  >
+                    <span>View on Strava</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
             </div>
           </div>
+
+          <PoweredByStravaBadge className="self-start sm:self-center" />
         </section>
 
         {/* Personal KPIs */}
@@ -137,10 +176,16 @@ export default function Profile() {
 
         {/* Personal Activities */}
         <section className="rounded-2xl border border-obsidian-700 bg-obsidian-800 overflow-hidden">
-          <div className="border-b border-obsidian-700 px-5 py-4">
-            <h2 className="font-display text-lg font-bold text-sand-100">
-              Koşu Geçmişim
-            </h2>
+          <div className="border-b border-obsidian-700 px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h2 className="font-display text-lg font-bold text-sand-100">
+                Koşu Geçmişim
+              </h2>
+              <p className="text-xs text-sand-400">
+                Senkronize edilen Strava koşularınız ve orijinal aktivite bağlantıları.
+              </p>
+            </div>
+            <PoweredByStravaBadge />
           </div>
 
           {loading ? (
@@ -161,7 +206,7 @@ export default function Profile() {
                   className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-5 py-4"
                 >
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-sm text-sand-100">{act.name}</span>
                       <span className="rounded bg-obsidian-700 px-1.5 py-0.5 font-mono text-[10px] text-sand-300">
                         {act.activity_type}
@@ -175,6 +220,7 @@ export default function Profile() {
                           <CheckCircle2 className="h-3 w-3" /> Onaylı
                         </span>
                       )}
+                      <ViewOnStravaLink activityId={act.strava_activity_id} />
                     </div>
                     <p className="text-xs text-sand-400 mt-1">
                       {new Date(act.start_date).toLocaleString("tr-TR")}
@@ -195,6 +241,69 @@ export default function Profile() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </section>
+
+        {/* Strava Connection & Data Privacy Controls */}
+        <section className="rounded-2xl border border-obsidian-700 bg-obsidian-800 p-5 sm:p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="font-display text-base font-bold text-sand-100 flex items-center gap-2">
+                <ShieldAlert className="h-4 w-4 text-[#FC5200]" />
+                Strava Bağlantısı ve Veri Gizliliği
+              </h2>
+              <p className="text-xs text-sand-400 mt-1 leading-relaxed">
+                IdaRun yalnızca belirlenen grup koşu saatlerindeki koşu özetlerinizi (mesafe,
+                süre, irtifa) saklar; verileriniz üçüncü taraflarla paylaşılmaz veya yapay zeka
+                model eğitiminde kullanılmaz. Bağlantıyı kestiğinizde Strava erişim yetkiniz
+                iptal edilir ve senkronize edilmiş tüm koşularınız sistemden anında silinir.
+              </p>
+            </div>
+          </div>
+
+          {!confirmDisconnect ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                id="strava-disconnect-btn"
+                type="button"
+                onClick={() => setConfirmDisconnect(true)}
+                className="inline-flex items-center gap-2 rounded-xl border border-red-500/40 bg-red-500/10 hover:bg-red-500/20 px-4 py-2.5 text-xs font-semibold text-red-400 transition-colors"
+              >
+                <Unplug className="h-4 w-4" />
+                Strava Bağlantısını Kes ve Verilerimi Sil
+              </button>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-red-500/40 bg-red-950/20 p-4 space-y-3">
+              <p className="text-xs text-sand-200 font-medium">
+                Strava bağlantınızı kaldırmak ve IdaRun üzerindeki tüm koşu kayıtlarınızı kalıcı
+                olarak silmek istediğinize emin misiniz?
+              </p>
+              <div className="flex items-center gap-2.5">
+                <button
+                  id="strava-disconnect-confirm-btn"
+                  type="button"
+                  disabled={disconnecting}
+                  onClick={handleDisconnectStrava}
+                  className="inline-flex items-center gap-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 px-4 py-2 text-xs font-bold text-white transition-colors"
+                >
+                  {disconnecting ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Unplug className="h-3.5 w-3.5" />
+                  )}
+                  Evet, Bağlantıyı Kes ve Verilerimi Sil
+                </button>
+                <button
+                  type="button"
+                  disabled={disconnecting}
+                  onClick={() => setConfirmDisconnect(false)}
+                  className="rounded-xl border border-obsidian-600 px-3.5 py-2 text-xs font-semibold text-sand-300 hover:bg-obsidian-700 transition-colors"
+                >
+                  Vazgeç
+                </button>
+              </div>
             </div>
           )}
         </section>

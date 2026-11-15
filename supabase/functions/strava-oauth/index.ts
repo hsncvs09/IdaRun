@@ -174,6 +174,70 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "disconnect") {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Yetkisiz istek." }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const supabaseUser = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: { user }, error: userErr } = await supabaseUser.auth.getUser();
+      if (userErr || !user) {
+        return new Response(JSON.stringify({ error: "Oturum doğrulanamadı." }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: tokenRow } = await supabaseAdmin
+        .from("strava_tokens")
+        .select("access_token, refresh_token")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (tokenRow?.access_token || tokenRow?.refresh_token) {
+        const basicAuth = btoa(`${stravaClientId}:${stravaClientSecret}`);
+        const tokenToRevoke = tokenRow.access_token || tokenRow.refresh_token;
+        try {
+          await fetch("https://www.strava.com/oauth/revoke", {
+            method: "POST",
+            headers: {
+              Authorization: `Basic ${basicAuth}`,
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({ token: tokenToRevoke }).toString(),
+          });
+        } catch {
+          // Best-effort revoke against Strava
+        }
+      }
+
+      const { count: deletedActivities } = await supabaseAdmin
+        .from("activities")
+        .delete({ count: "exact" })
+        .eq("user_id", user.id);
+
+      await supabaseAdmin.from("strava_tokens").delete().eq("user_id", user.id);
+      await supabaseAdmin.from("profiles").delete().eq("id", user.id);
+
+      return new Response(
+        JSON.stringify({
+          revoked: true,
+          deletedActivities: deletedActivities ?? 0,
+          deletedAt: new Date().toISOString(),
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     return new Response(JSON.stringify({ error: "Geçersiz işlem." }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

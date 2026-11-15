@@ -2,15 +2,21 @@ import React, { useState } from "react";
 import { KeyRound, ShieldCheck, LogOut, Loader2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "./ToastProvider";
+import { PoweredByStravaBadge } from "./StravaBranding";
 
 export default function JoinCodeModal() {
   const { profile, verifyJoinCode, logout, isDemo } = useAuth();
   const { showToast } = useToast();
   const [code, setCode] = useState("");
+  const [consentChecked, setConsentChecked] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!consentChecked) {
+      showToast("Devam etmek için grup veri paylaşım onayını işaretlemelisiniz.", "error");
+      return;
+    }
     try {
       setSubmitting(true);
       await verifyJoinCode(code);
@@ -70,10 +76,26 @@ export default function JoinCodeModal() {
             />
           </div>
 
+          <label className="flex items-start gap-2.5 rounded-xl border border-obsidian-700 bg-obsidian-900/70 p-3 text-xs text-sand-300 cursor-pointer">
+            <input
+              id="strava-consent-checkbox"
+              type="checkbox"
+              checked={consentChecked}
+              onChange={(e) => setConsentChecked(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-ember-500 shrink-0"
+            />
+            <span className="leading-relaxed">
+              Belirlenen grup koşu saatlerindeki Strava koşu özetlerimin (mesafe, süre,
+              irtifa) yalnızca onaylı IdaRun kulüp üyeleriyle ortak rota hedefi ve grup
+              tablosunda paylaşılmasına açık rıza veriyorum. İstediğim an Profilimden
+              bağlantıyı kesip verilerimi silebilirim.
+            </span>
+          </label>
+
           <button
             id="verify-join-code-btn"
             type="submit"
-            disabled={submitting || !code.trim()}
+            disabled={submitting || !code.trim() || !consentChecked}
             className="w-full flex items-center justify-center gap-2 rounded-xl bg-ember-500 hover:bg-ember-600 disabled:opacity-50 px-4 py-3 text-sm font-semibold text-white transition-colors"
           >
             {submitting ? (
@@ -93,6 +115,10 @@ export default function JoinCodeModal() {
           <LogOut className="h-3.5 w-3.5" />
           Farklı Hesapla Giriş Yap
         </button>
+
+        <div className="mt-5 pt-4 border-t border-obsidian-700/70 flex justify-center">
+          <PoweredByStravaBadge />
+        </div>
       </div>
     </div>
   );
