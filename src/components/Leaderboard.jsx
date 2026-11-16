@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Trophy, Mountain, Gauge, Footprints, Medal } from "lucide-react";
 import { buildLeaderboard } from "../lib/routeMath";
-import { PoweredByStravaBadge } from "./StravaBranding";
 
 const PERIODS = [
   { id: "week", label: "Bu Hafta" },
@@ -193,13 +192,6 @@ export default function Leaderboard({ profiles = [], activities = [], currentUse
             );
           })
         )}
-      </div>
-
-      <div className="border-t border-obsidian-700/70 bg-obsidian-900/40 px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-sand-400">
-        <span>
-          Yalnızca katılım kodunu doğrulayarak açık rıza veren kulüp üyelerinin takvim içi koşu toplamları listelenir.
-        </span>
-        <PoweredByStravaBadge className="self-start sm:self-auto" />
       </div>
     </section>
   );

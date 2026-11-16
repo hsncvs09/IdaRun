@@ -148,10 +148,21 @@ describe("MapTracker Tüm Rota davranışı", () => {
     expect(mockMap.closePopup).toHaveBeenCalledTimes(1);
     expect(mockOpenPopup).not.toHaveBeenCalled();
   });
+  it("harita üzerindeki Konum ve Tüm Rota butonları alt menü (z-40) altında kalacak şekilde izole edilir", () => {
+    render(<MapTracker checkpoints={checkpoints} totalGroupKm={120} targetDistanceKm={9500} />);
+
+    const mapWrapper = screen.getByTestId("map-wrapper");
+    expect(mapWrapper.className).toContain("z-0");
+    expect(mapWrapper.className).toContain("isolate");
+
+    const quickActions = screen.getByTestId("map-quick-actions");
+    expect(quickActions.className).toContain("z-20");
+    expect(quickActions.className).not.toContain("z-[400]");
+  });
 });
 
 describe("Navbar iPhone PWA safe-area desteği", () => {
-  it("üst başlık çubuğunda env(safe-area-inset-top) boşluğu ve gerekli kontroller bulunur", () => {
+  it("üst başlık çubuğunda env(safe-area-inset-top) boşluğu ve 'Kazdağları Running' başlığı bulunur", () => {
     const { container } = render(
       <MemoryRouter>
         <Navbar onSync={vi.fn()} syncing={false} />
@@ -161,7 +172,8 @@ describe("Navbar iPhone PWA safe-area desteği", () => {
     const header = container.querySelector("header");
     expect(header).not.toBeNull();
     expect(header.className).toContain("pt-[env(safe-area-inset-top)]");
-    expect(screen.getByText("IdaRun")).toBeInTheDocument();
+    expect(header.className).toContain("z-40");
+    expect(screen.getByText("Kazdağları Running")).toBeInTheDocument();
     expect(document.getElementById("navbar-sync-btn")).toBeInTheDocument();
     expect(document.getElementById("logout-btn")).toBeInTheDocument();
   });
@@ -242,7 +254,10 @@ describe("Dashboard son senkronizasyon tarihi", () => {
         challenge_title: "Akçay'dan Tokyo'ya Kolektif Koşu",
         target_distance_km: 9500,
         last_sync_at: "2026-11-10T19:30:00Z",
-        run_schedule: [],
+        run_schedule: [
+          { id: "wed-eve", day: 3, label: "Çarşamba", start: "18:30", end: "20:00", enabled: true },
+          { id: "sun-mor", day: 0, label: "Pazar", start: "08:30", end: "11:00", enabled: true },
+        ],
       },
       checkpoints: [
         { id: "cp-1", order_index: 1, name: "Akçay", country: "Türkiye", target_km: 0, lat: 39.58, lng: 26.92 },
@@ -265,6 +280,13 @@ describe("Dashboard son senkronizasyon tarihi", () => {
     expect(indicator).toBeInTheDocument();
     expect(indicator.textContent).toContain("Son senkronizasyon:");
     expect(indicator.textContent).not.toContain("Henüz yapılmadı");
+
+    const scheduleContainer = screen.getByTestId("group-schedule-container");
+    expect(scheduleContainer.className).toContain("flex-col");
+    const schedulePills = screen.getByTestId("group-schedule-pills");
+    expect(schedulePills.children).toHaveLength(2);
+
+    expect(screen.getAllByTestId("powered-by-strava-badge")).toHaveLength(1);
 
     fetchSpy.mockRestore();
   });
@@ -291,7 +313,7 @@ describe("Strava Marka Yönergeleri (Brand Guidelines) uyumluluğu", () => {
     expect(badge).toHaveAttribute("href", "https://www.strava.com");
   });
 
-  it("Profile sayfasında her aktivite için 'View on Strava' bağlantısı ve bağlantı kesme kontrolü bulunur", async () => {
+  it("Profile sayfasında her aktivite için 'View on Strava' bağlantısı, tek Powered by Strava rozeti ve bağlantı kesme kontrolü bulunur", async () => {
     const { default: Profile } = await import("../../pages/Profile");
     const { ToastProvider } = await import("../ToastProvider");
     const dataService = await import("../../lib/dataService");
@@ -325,6 +347,8 @@ describe("Strava Marka Yönergeleri (Brand Guidelines) uyumluluğu", () => {
         </MemoryRouter>
       );
     });
+
+    expect(screen.getAllByTestId("powered-by-strava-badge")).toHaveLength(1);
 
     const viewLink = screen.getByTestId("view-on-strava-90001");
     expect(viewLink).toBeInTheDocument();

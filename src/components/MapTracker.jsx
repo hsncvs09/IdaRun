@@ -168,9 +168,15 @@ export default function MapTracker({ checkpoints = [], totalGroupKm = 0, targetD
       </div>
 
       {/* Leaflet Map */}
-      <div className="relative h-[340px] sm:h-[420px] w-full">
+      <div
+        data-testid="map-wrapper"
+        className="relative z-0 isolate h-[340px] sm:h-[420px] w-full"
+      >
         {/* Map Quick Actions */}
-        <div className="absolute top-3 right-3 z-[400] flex items-center gap-2">
+        <div
+          data-testid="map-quick-actions"
+          className="absolute top-3 right-3 z-20 flex items-center gap-2"
+        >
           <button
             type="button"
             onClick={handleFocusRunner}
@@ -301,7 +307,7 @@ export default function MapTracker({ checkpoints = [], totalGroupKm = 0, targetD
           href="https://www.openstreetmap.org/copyright"
           target="_blank"
           rel="noreferrer"
-          className="absolute bottom-1.5 right-2 z-[400] rounded bg-obsidian-900/75 px-1.5 py-0.5 text-[10px] text-sand-500 hover:text-sand-300 transition-colors"
+          className="absolute bottom-1.5 right-2 z-20 rounded bg-obsidian-900/75 px-1.5 py-0.5 text-[10px] text-sand-500 hover:text-sand-300 transition-colors"
         >
           © OpenStreetMap
         </a>

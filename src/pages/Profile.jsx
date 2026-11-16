@@ -85,7 +85,7 @@ export default function Profile() {
 
       <main className="mx-auto max-w-4xl px-4 sm:px-6 pt-6 space-y-6">
         {/* Profile Banner */}
-        <section className="rounded-2xl border border-obsidian-700 bg-obsidian-800 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <section className="rounded-2xl border border-obsidian-700 bg-obsidian-800 p-6">
           <div className="flex items-center gap-4">
             {profile?.avatar_url ? (
               <img
@@ -130,8 +130,6 @@ export default function Profile() {
               </div>
             </div>
           </div>
-
-          <PoweredByStravaBadge className="self-start sm:self-center" />
         </section>
 
         {/* Personal KPIs */}

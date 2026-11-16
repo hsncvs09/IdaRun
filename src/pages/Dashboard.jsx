@@ -116,19 +116,27 @@ export default function Dashboard() {
             </div>
 
             {activeSchedule.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 text-xs text-sand-400 mr-1">
+              <div
+                data-testid="group-schedule-container"
+                className="flex flex-col gap-2 md:items-end"
+              >
+                <span className="inline-flex items-center gap-1.5 text-xs text-sand-400">
                   <CalendarClock className="h-3.5 w-3.5 text-pine-400" />
                   Grup Takvimi:
                 </span>
-                {activeSchedule.map((win) => (
-                  <span
-                    key={win.id}
-                    className="rounded-lg border border-obsidian-600 bg-obsidian-900 px-2.5 py-1 font-mono text-[11px] text-sand-200"
-                  >
-                    {DAY_NAMES_TR[win.day]} {win.start}–{win.end}
-                  </span>
-                ))}
+                <div
+                  data-testid="group-schedule-pills"
+                  className="flex flex-wrap items-center gap-2 md:justify-end"
+                >
+                  {activeSchedule.map((win) => (
+                    <span
+                      key={win.id}
+                      className="rounded-lg border border-obsidian-600 bg-obsidian-900 px-2.5 py-1 font-mono text-[11px] text-sand-200 whitespace-nowrap"
+                    >
+                      {DAY_NAMES_TR[win.day]} {win.start}–{win.end}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -190,7 +198,7 @@ export default function Dashboard() {
           currentUserId={profile?.id || user?.id}
         />
 
-        <footer className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-sand-500">
+        <footer className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left text-xs text-sand-500">
           <span>
             IdaRun · Kulüp içi ortak koşu hedefi takibi. Strava verileri üye açık rızasıyla senkronize edilir.
           </span>

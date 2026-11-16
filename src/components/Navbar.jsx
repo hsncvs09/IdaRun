@@ -23,20 +23,20 @@ export default function Navbar({ onSync, syncing }) {
     <>
       {/* Top Desktop / Tablet Header */}
       <header className="sticky top-0 z-40 border-b border-obsidian-700 bg-obsidian-900/90 backdrop-blur-md pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-3">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-2 px-4 sm:px-6">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <img
               src="/icons/icon-192.png"
-              alt="IdaRun Logo"
-              className="h-9 w-9 rounded-lg border border-obsidian-600"
+              alt="Kazdağları Running Logo"
+              className="h-9 w-9 shrink-0 rounded-lg border border-obsidian-600"
             />
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-display text-lg font-extrabold tracking-tight text-sand-100">
-                  IdaRun
+                <span className="font-display text-[15px] sm:text-lg font-extrabold tracking-tight text-sand-100 leading-tight truncate">
+                  Kazdağları Running
                 </span>
                 {isDemo && (
-                  <span className="rounded-md border border-ember-500/30 bg-ember-500/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase text-ember-400">
+                  <span className="shrink-0 rounded-md border border-ember-500/30 bg-ember-500/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase text-ember-400">
                     Demo
                   </span>
                 )}
@@ -64,14 +64,14 @@ export default function Navbar({ onSync, syncing }) {
             )}
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {onSync && (
               <button
                 id="navbar-sync-btn"
                 type="button"
                 onClick={onSync}
                 disabled={syncing}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-ember-500 hover:bg-ember-600 disabled:opacity-60 px-3 py-2 text-xs sm:text-sm font-semibold text-white transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-ember-500 hover:bg-ember-600 disabled:opacity-60 px-2.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold text-white transition-colors"
               >
                 <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
                 <span className="hidden sm:inline">Strava Senkronize Et</span>
