@@ -1,6 +1,6 @@
 import { supabase, isSupabaseConfigured } from "./supabase";
 import { loadDemoStore, saveDemoStore } from "./demoData";
-import { isActivityInSchedule } from "./routeMath";
+import { isActivityInSchedule, reorderCheckpoints } from "./routeMath";
 
 function nextRecentDateForDay(dayOfWeek, hour, minute) {
   const now = new Date();
@@ -239,46 +239,82 @@ export async function updateGroupSettings(updates, isDemo) {
 }
 
 export async function saveCheckpoint(checkpoint, isDemo) {
+  const normalizedInput = {
+    ...checkpoint,
+    order_index: Number(checkpoint.order_index),
+    target_km: Number(checkpoint.target_km),
+    lat: Number(checkpoint.lat),
+    lng: Number(checkpoint.lng),
+  };
+
   if (isDemo || !isSupabaseConfigured) {
     const store = loadDemoStore();
-    if (checkpoint.id) {
-      store.checkpoints = store.checkpoints.map((cp) =>
-        cp.id === checkpoint.id ? { ...cp, ...checkpoint } : cp
-      );
-    } else {
-      store.checkpoints.push({
-        ...checkpoint,
-        id: `cp-${Date.now()}`,
-      });
-    }
-    store.checkpoints.sort((a, b) => Number(a.order_index) - Number(b.order_index));
+    const prepared = normalizedInput.id
+      ? normalizedInput
+      : { ...normalizedInput, id: `cp-${Date.now()}` };
+    store.checkpoints = reorderCheckpoints(store.checkpoints, prepared);
     saveDemoStore(store);
     return store.checkpoints;
   }
+
+  const { data: currentCheckpoints, error: fetchError } = await supabase
+    .from("checkpoints")
+    .select("*")
+    .order("order_index", { ascending: true })
+    .order("target_km", { ascending: true });
+  if (fetchError) throw fetchError;
+
+  const existingList = currentCheckpoints || [];
+  const tempNewId = "__new_checkpoint__";
+  const incoming = normalizedInput.id
+    ? normalizedInput
+    : { ...normalizedInput, id: tempNewId };
+
+  const reordered = reorderCheckpoints(existingList, incoming);
+  const originalOrderMap = new Map(
+    existingList.map((cp) => [cp.id, Number(cp.order_index)])
+  );
+
+  const shiftUpdates = reordered
+    .filter((cp) => cp.id !== incoming.id && originalOrderMap.get(cp.id) !== cp.order_index)
+    .map((cp) =>
+      supabase
+        .from("checkpoints")
+        .update({ order_index: cp.order_index })
+        .eq("id", cp.id)
+    );
+
+  if (shiftUpdates.length > 0) {
+    const shiftResults = await Promise.all(shiftUpdates);
+    const failedShift = shiftResults.find((r) => r.error);
+    if (failedShift) throw failedShift.error;
+  }
+
+  const targetItem = reordered.find((cp) => cp.id === incoming.id);
 
   if (checkpoint.id) {
     const { error } = await supabase
       .from("checkpoints")
       .update({
-        order_index: Number(checkpoint.order_index),
-        name: checkpoint.name,
-        country: checkpoint.country,
-        description: checkpoint.description,
-        target_km: Number(checkpoint.target_km),
-        lat: Number(checkpoint.lat),
-        lng: Number(checkpoint.lng),
+        order_index: targetItem.order_index,
+        name: targetItem.name,
+        country: targetItem.country,
+        description: targetItem.description,
+        target_km: targetItem.target_km,
+        lat: targetItem.lat,
+        lng: targetItem.lng,
       })
       .eq("id", checkpoint.id);
     if (error) throw error;
   } else {
     const { error } = await supabase.from("checkpoints").insert({
-      order_index: Number(checkpoint.order_index),
-      name: checkpoint.name,
-      country: checkpoint.country,
-      description: checkpoint.description,
-      target_km: Number(checkpoint.target_km),
-      lat: Number(checkpoint.lat),
-      lng: Number(checkpoint.lng),
+      order_index: targetItem.order_index,
+      name: targetItem.name,
+      country: targetItem.country,
+      description: targetItem.description,
+      target_km: targetItem.target_km,
+      lat: targetItem.lat,
+      lng: targetItem.lng,
     });
     if (error) throw error;
   }
@@ -288,21 +324,50 @@ export async function saveCheckpoint(checkpoint, isDemo) {
     .select("*")
     .order("order_index", { ascending: true });
   if (error) throw error;
-  return data;
+  return data || [];
 }
 
 export async function deleteCheckpoint(checkpointId, isDemo) {
   if (isDemo || !isSupabaseConfigured) {
     const store = loadDemoStore();
-    store.checkpoints = store.checkpoints.filter((c) => c.id !== checkpointId);
+    const remaining = store.checkpoints.filter((c) => c.id !== checkpointId);
+    store.checkpoints = reorderCheckpoints(remaining);
     saveDemoStore(store);
     return store.checkpoints;
   }
 
   const { error } = await supabase.from("checkpoints").delete().eq("id", checkpointId);
   if (error) throw error;
-  const { data } = await supabase.from("checkpoints").select("*").order("order_index", { ascending: true });
-  return data || [];
+
+  const { data: currentCheckpoints, error: fetchError } = await supabase
+    .from("checkpoints")
+    .select("*")
+    .order("order_index", { ascending: true })
+    .order("target_km", { ascending: true });
+  if (fetchError) throw fetchError;
+
+  const existingList = currentCheckpoints || [];
+  const reordered = reorderCheckpoints(existingList);
+  const originalOrderMap = new Map(
+    existingList.map((cp) => [cp.id, Number(cp.order_index)])
+  );
+
+  const shiftUpdates = reordered
+    .filter((cp) => originalOrderMap.get(cp.id) !== cp.order_index)
+    .map((cp) =>
+      supabase
+        .from("checkpoints")
+        .update({ order_index: cp.order_index })
+        .eq("id", cp.id)
+    );
+
+  if (shiftUpdates.length > 0) {
+    const shiftResults = await Promise.all(shiftUpdates);
+    const failedShift = shiftResults.find((r) => r.error);
+    if (failedShift) throw failedShift.error;
+  }
+
+  return reordered;
 }
 
 export async function toggleActivityValidity(activityId, nextValid, isDemo) {

@@ -100,6 +100,12 @@ export default function AdminPanel({
     order_index: checkpoints.length + 1,
   });
 
+  useEffect(() => {
+    setCpForm((prev) =>
+      prev.id ? prev : { ...prev, order_index: checkpoints.length + 1 }
+    );
+  }, [checkpoints.length]);
+
   // Activity filter
   const [activitySearch, setActivitySearch] = useState("");
 
@@ -206,7 +212,8 @@ export default function AdminPanel({
     e.preventDefault();
     try {
       setSaving(true);
-      await saveCheckpoint(
+      const isEditing = Boolean(cpForm.id);
+      const savedList = await saveCheckpoint(
         {
           ...cpForm,
           order_index: Number(cpForm.order_index),
@@ -216,9 +223,17 @@ export default function AdminPanel({
         },
         isDemo
       );
-      setCpForm({ ...EMPTY_CHECKPOINT, order_index: checkpoints.length + 2 });
+      const nextOrder = Array.isArray(savedList)
+        ? savedList.length + 1
+        : checkpoints.length + (isEditing ? 1 : 2);
+      setCpForm({ ...EMPTY_CHECKPOINT, order_index: nextOrder });
       await onRefresh();
-      showToast(cpForm.id ? "Durak güncellendi." : "Yeni durak eklendi.", "success");
+      showToast(
+        isEditing
+          ? "Durak güncellendi ve rota sıralaması düzenlendi."
+          : "Yeni durak eklendi ve durak sıralaması düzenlendi.",
+        "success"
+      );
     } catch (err) {
       showToast(err.message || "Durak kaydedilemedi.", "error");
     } finally {
@@ -229,9 +244,15 @@ export default function AdminPanel({
   const handleDeleteCheckpoint = async (id) => {
     try {
       setSaving(true);
-      await deleteCheckpoint(id, isDemo);
+      const remainingList = await deleteCheckpoint(id, isDemo);
+      if (cpForm.id === id) {
+        const nextOrder = Array.isArray(remainingList)
+          ? remainingList.length + 1
+          : Math.max(1, checkpoints.length);
+        setCpForm({ ...EMPTY_CHECKPOINT, order_index: nextOrder });
+      }
       await onRefresh();
-      showToast("Durak rotadan kaldırıldı.", "info");
+      showToast("Durak rotadan kaldırıldı ve sıra numaraları güncellendi.", "info");
     } catch (err) {
       showToast(err.message || "Durak silinemedi.", "error");
     } finally {
@@ -739,9 +760,14 @@ export default function AdminPanel({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] text-sand-400 mb-1">Sıra No</label>
+                <label htmlFor="checkpoint-order-input" className="block text-[11px] text-sand-400 mb-1">
+                  Sıra No
+                </label>
                 <input
+                  id="checkpoint-order-input"
                   type="number"
+                  min={1}
+                  max={cpForm.id ? Math.max(1, checkpoints.length) : checkpoints.length + 1}
                   required
                   value={cpForm.order_index}
                   onChange={(e) => setCpForm({ ...cpForm, order_index: e.target.value })}
@@ -831,7 +857,9 @@ export default function AdminPanel({
           </form>
 
           <div className="lg:col-span-3 rounded-2xl border border-obsidian-700 bg-obsidian-800 divide-y divide-obsidian-700/70">
-            {checkpoints.map((cp) => (
+            {[...checkpoints]
+              .sort((a, b) => Number(a.order_index) - Number(b.order_index))
+              .map((cp) => (
               <div key={cp.id} className="flex items-center justify-between gap-3 px-4 py-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">

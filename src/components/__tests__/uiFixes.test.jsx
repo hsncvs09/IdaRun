@@ -364,3 +364,57 @@ describe("Strava Marka Yönergeleri (Brand Guidelines) uyumluluğu", () => {
   });
 });
 
+describe("AdminPanel durak sırası düzenleme", () => {
+  it("araya yeni durak eklendiğinde ve sıra güncellendiğinde tüm durakların sırasını benzersiz yeniden numaralandırır", async () => {
+    const { saveCheckpoint, deleteCheckpoint, fetchDashboardBundle } = await import(
+      "../../lib/dataService"
+    );
+    const { resetDemoStore } = await import("../../lib/demoData");
+
+    resetDemoStore();
+    const initial = await fetchDashboardBundle(true);
+    const initialCount = initial.checkpoints.length;
+
+    // 2. sıraya yeni durak ekle
+    const afterInsert = await saveCheckpoint(
+      {
+        id: null,
+        order_index: 2,
+        name: "Bursa",
+        country: "Türkiye",
+        description: "Ara durak",
+        target_km: 220,
+        lat: 40.18,
+        lng: 29.06,
+      },
+      true
+    );
+
+    expect(afterInsert).toHaveLength(initialCount + 1);
+    expect(afterInsert.map((c) => c.order_index)).toEqual(
+      Array.from({ length: initialCount + 1 }, (_, i) => i + 1)
+    );
+    const bursa = afterInsert.find((c) => c.name === "Bursa");
+    expect(bursa.order_index).toBe(2);
+    expect(afterInsert.find((c) => c.name === "İstanbul").order_index).toBe(3);
+
+    // Bursa durağını 4. sıraya taşı
+    const afterMove = await saveCheckpoint({ ...bursa, order_index: 4 }, true);
+    expect(afterMove.map((c) => c.order_index)).toEqual(
+      Array.from({ length: initialCount + 1 }, (_, i) => i + 1)
+    );
+    expect(afterMove.find((c) => c.name === "Bursa").order_index).toBe(4);
+    expect(afterMove.find((c) => c.name === "İstanbul").order_index).toBe(2);
+
+    // Bursa durağını sil -> tekrar 1..N boşluksuz sıralanmalı
+    const afterDelete = await deleteCheckpoint(bursa.id, true);
+    expect(afterDelete).toHaveLength(initialCount);
+    expect(afterDelete.map((c) => c.order_index)).toEqual(
+      Array.from({ length: initialCount }, (_, i) => i + 1)
+    );
+
+    resetDemoStore();
+  });
+});
+
+

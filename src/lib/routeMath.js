@@ -326,3 +326,51 @@ export function formatSyncTimestamp(isoString) {
   }).format(d);
 }
 
+/**
+ * Durak listesini order_index sırasına göre sıralar; yeni eklenen veya sırası
+ * güncellenen durağı hedef pozisyona yerleştirerek tüm durakların order_index
+ * değerlerini 1'den N'e benzersiz ve kesintisiz şekilde yeniden numaralandırır.
+ */
+export function reorderCheckpoints(checkpoints = [], incomingCheckpoint = null) {
+  const baseSorted = [...checkpoints].sort(
+    (a, b) =>
+      Number(a.order_index) - Number(b.order_index) ||
+      Number(a.target_km) - Number(b.target_km)
+  );
+
+  if (!incomingCheckpoint) {
+    return baseSorted.map((cp, idx) => ({
+      ...cp,
+      order_index: idx + 1,
+    }));
+  }
+
+  const isUpdate = Boolean(incomingCheckpoint.id);
+  const remaining = isUpdate
+    ? baseSorted.filter((cp) => cp.id !== incomingCheckpoint.id)
+    : baseSorted;
+
+  const existingTarget = isUpdate
+    ? baseSorted.find((cp) => cp.id === incomingCheckpoint.id)
+    : null;
+
+  const mergedItem = {
+    ...(existingTarget || {}),
+    ...incomingCheckpoint,
+  };
+
+  const maxIndex = remaining.length + 1;
+  const rawOrder = Number(incomingCheckpoint.order_index);
+  const clampedOrder = Number.isFinite(rawOrder)
+    ? Math.max(1, Math.min(maxIndex, Math.round(rawOrder)))
+    : maxIndex;
+
+  const nextList = [...remaining];
+  nextList.splice(clampedOrder - 1, 0, mergedItem);
+
+  return nextList.map((cp, idx) => ({
+    ...cp,
+    order_index: idx + 1,
+  }));
+}
+

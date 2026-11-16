@@ -6,6 +6,7 @@ import {
   formatSyncTimestamp,
   interpolatePositionOnRoute,
   isActivityInSchedule,
+  reorderCheckpoints,
 } from "../routeMath";
 
 const SAMPLE_SCHEDULE = [
@@ -149,5 +150,97 @@ describe("computeScheduledSyncPreview & formatSyncTimestamp", () => {
     expect(formatSyncTimestamp(null)).toBeNull();
     expect(formatSyncTimestamp("invalid-date")).toBeNull();
     expect(formatSyncTimestamp("2026-11-10T16:30:00Z")).toBeTruthy();
+  });
+});
+
+describe("reorderCheckpoints", () => {
+  it("araya yeni durak eklendiğinde sonraki durakların sırasını 1'den N'e yeniden düzenler", () => {
+    const result = reorderCheckpoints(SAMPLE_CHECKPOINTS, {
+      id: "new-cp",
+      order_index: 2,
+      name: "Bursa",
+      target_km: 200,
+    });
+
+    expect(result.map((c) => [c.name, c.order_index])).toEqual([
+      ["Akçay", 1],
+      ["Bursa", 2],
+      ["İstanbul", 3],
+      ["Tokyo", 4],
+    ]);
+  });
+
+  it("mevcut bir durağın sırası güncellendiğinde tüm durakları çakışmasız yeniden sıralar", () => {
+    const four = [
+      { id: "1", order_index: 1, name: "Akçay", target_km: 0 },
+      { id: "2", order_index: 2, name: "İstanbul", target_km: 400 },
+      { id: "3", order_index: 3, name: "Tiflis", target_km: 1800 },
+      { id: "4", order_index: 4, name: "Tokyo", target_km: 9500 },
+    ];
+
+    // #4 olan durağı #2'ye taşı
+    const movedUp = reorderCheckpoints(four, { id: "4", order_index: 2, name: "Tokyo" });
+    expect(movedUp.map((c) => [c.name, c.order_index])).toEqual([
+      ["Akçay", 1],
+      ["Tokyo", 2],
+      ["İstanbul", 3],
+      ["Tiflis", 4],
+    ]);
+
+    // #1 olan durağı #3'e taşı
+    const movedDown = reorderCheckpoints(four, { id: "1", order_index: 3, name: "Akçay" });
+    expect(movedDown.map((c) => [c.name, c.order_index])).toEqual([
+      ["İstanbul", 1],
+      ["Tiflis", 2],
+      ["Akçay", 3],
+      ["Tokyo", 4],
+    ]);
+  });
+
+  it("önceden aynı sıra numarasına sahip duraklar varsa veya aradan durak silindiyse boşluk/çakışma bırakmaz", () => {
+    const duplicated = [
+      { id: "1", order_index: 1, name: "Akçay", target_km: 0 },
+      { id: "2", order_index: 2, name: "Bursa", target_km: 200 },
+      { id: "3", order_index: 2, name: "İstanbul", target_km: 400 },
+      { id: "4", order_index: 5, name: "Tokyo", target_km: 9500 },
+    ];
+
+    const repaired = reorderCheckpoints(duplicated);
+    expect(repaired.map((c) => [c.name, c.order_index])).toEqual([
+      ["Akçay", 1],
+      ["Bursa", 2],
+      ["İstanbul", 3],
+      ["Tokyo", 4],
+    ]);
+
+    const afterInsert = reorderCheckpoints(duplicated, {
+      id: "3",
+      order_index: 2,
+      name: "İstanbul",
+    });
+    expect(afterInsert.map((c) => [c.name, c.order_index])).toEqual([
+      ["Akçay", 1],
+      ["İstanbul", 2],
+      ["Bursa", 3],
+      ["Tokyo", 4],
+    ]);
+  });
+
+  it("sınır dışı sıra numaralarını [1, N] aralığına sabitler", () => {
+    const tooLow = reorderCheckpoints(SAMPLE_CHECKPOINTS, {
+      id: "new-low",
+      order_index: -3,
+      name: "Başlangıç",
+      target_km: 0,
+    });
+    expect(tooLow[0]).toMatchObject({ name: "Başlangıç", order_index: 1 });
+
+    const tooHigh = reorderCheckpoints(SAMPLE_CHECKPOINTS, {
+      id: "new-high",
+      order_index: 99,
+      name: "Son",
+      target_km: 9900,
+    });
+    expect(tooHigh[tooHigh.length - 1]).toMatchObject({ name: "Son", order_index: 4 });
   });
 });
