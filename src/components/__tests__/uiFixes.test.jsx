@@ -158,6 +158,9 @@ describe("MapTracker Tüm Rota davranışı", () => {
     const quickActions = screen.getByTestId("map-quick-actions");
     expect(quickActions.className).toContain("z-20");
     expect(quickActions.className).not.toContain("z-[400]");
+
+    expect(screen.getByText("Grup Konumu")).toBeInTheDocument();
+    expect(screen.queryByText("IdaRun Grup Konumu")).not.toBeInTheDocument();
   });
 });
 
@@ -318,6 +321,10 @@ describe("Strava Marka Yönergeleri (Brand Guidelines) uyumluluğu", () => {
         "Akçay sahilde rüzgara karşı, Kazdağları’nda yokuşa karşı. Ortak noktamız: Durmamak!"
       )
     ).toBeInTheDocument();
+    expect(screen.getByText("20 Ara Durak")).toBeInTheDocument();
+    expect(screen.queryByText("12 Ara Durak")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Demo Modu/i)).not.toBeInTheDocument();
+    expect(document.getElementById("demo-member-btn")).toBeNull();
   });
 
   it("Profile sayfasında her aktivite için 'View on Strava' bağlantısı, tek Powered by Strava rozeti ve bağlantı kesme kontrolü bulunur", async () => {

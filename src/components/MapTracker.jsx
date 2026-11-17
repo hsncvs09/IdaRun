@@ -289,7 +289,7 @@ export default function MapTracker({ checkpoints = [], totalGroupKm = 0, targetD
             <Popup>
               <div className="space-y-1">
                 <p className="font-display font-bold text-sm text-ember-400">
-                  IdaRun Grup Konumu
+                  Grup Konumu
                 </p>
                 <p className="font-mono text-xs text-sand-100">
                   Toplam: {totalGroupKm.toFixed(1)} km
