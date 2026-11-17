@@ -311,6 +311,13 @@ describe("Strava Marka Yönergeleri (Brand Guidelines) uyumluluğu", () => {
     const badge = screen.getByTestId("powered-by-strava-badge");
     expect(badge).toBeInTheDocument();
     expect(badge).toHaveAttribute("href", "https://www.strava.com");
+
+    expect(screen.getByText("Kazdağları Running")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Akçay sahilde rüzgara karşı, Kazdağları’nda yokuşa karşı. Ortak noktamız: Durmamak!"
+      )
+    ).toBeInTheDocument();
   });
 
   it("Profile sayfasında her aktivite için 'View on Strava' bağlantısı, tek Powered by Strava rozeti ve bağlantı kesme kontrolü bulunur", async () => {

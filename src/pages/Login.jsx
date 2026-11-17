@@ -21,15 +21,15 @@ export default function Login() {
             <div className="flex items-center gap-3">
               <img
                 src="/icons/icon-192.png"
-                alt="IdaRun"
-                className="h-12 w-12 rounded-2xl border border-obsidian-600 shadow-lg"
+                alt="Kazdağları Running"
+                className="h-12 w-12 shrink-0 rounded-2xl border border-obsidian-600 shadow-lg"
               />
               <div>
                 <span className="font-display text-2xl font-extrabold text-sand-100">
-                  IdaRun
+                  Kazdağları Running
                 </span>
-                <p className="text-xs font-medium text-ember-400 uppercase tracking-wider">
-                  Kazdağları Koşu Topluluğu
+                <p className="text-xs font-medium text-ember-400 mt-0.5 leading-snug">
+                  Akçay sahilde rüzgara karşı, Kazdağları’nda yokuşa karşı. Ortak noktamız: Durmamak!
                 </p>
               </div>
             </div>
