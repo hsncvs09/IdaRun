@@ -417,4 +417,214 @@ describe("AdminPanel durak sırası düzenleme", () => {
   });
 });
 
+describe("AdminPanel koşu takvimi düzenleme (edit)", () => {
+  const baseSettings = {
+    challenge_title: "IdaRun Test",
+    target_distance_km: 9500,
+    join_code: "IDARUN2026",
+    challenge_start_date: "2026-01-01T00:00:00+03:00",
+    timezone: "Europe/Istanbul",
+    enforce_schedule: true,
+    auto_sync_enabled: true,
+    auto_sync_mode: "after_schedule",
+    auto_sync_delay_minutes: 60,
+    auto_sync_time: "22:30",
+    run_schedule: [
+      { id: "tue-eve", day: 2, label: "Salı Akşam", start: "19:00", end: "21:30", enabled: true },
+      { id: "sun-morn", day: 0, label: "Pazar Sabah", start: "07:30", end: "11:00", enabled: true },
+    ],
+  };
+
+  it("mevcut bir koşu penceresini silmeden yerinde düzenler, önizlemeyi günceller ve kaydeder", async () => {
+    const { default: AdminPanel } = await import("../AdminPanel");
+    const { ToastProvider } = await import("../ToastProvider");
+    const dataService = await import("../../lib/dataService");
+    const updateSpy = vi.spyOn(dataService, "updateGroupSettings").mockResolvedValue({
+      ...baseSettings,
+    });
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <AdminPanel
+            settings={baseSettings}
+            checkpoints={[]}
+            activities={[]}
+            profiles={[]}
+            isDemo={true}
+            onRefresh={onRefresh}
+          />
+        </ToastProvider>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Koşu Takvimi/i }));
+
+    // İlk satır için düzenleme butonuna bas
+    const editButtons = screen.getAllByRole("button", { name: "Pencereyi düzenle" });
+    fireEvent.click(editButtons[0]);
+
+    const editRow = screen.getByTestId("schedule-edit-row-tue-eve");
+    expect(editRow).toBeInTheDocument();
+
+    const daySelect = screen.getByLabelText("Koşu günü");
+    const labelInput = screen.getByLabelText("Koşu etiketi");
+    const startInput = screen.getByLabelText("Başlangıç saati");
+    const endInput = screen.getByLabelText("Bitiş saati");
+
+    expect(daySelect.value).toBe("2");
+    expect(labelInput.value).toBe("Salı Akşam");
+    expect(startInput.value).toBe("19:00");
+    expect(endInput.value).toBe("21:30");
+
+    // Günü Çarşamba (3), etiketi ve saatleri değiştir
+    fireEvent.change(daySelect, { target: { value: "3" } });
+    fireEvent.change(labelInput, { target: { value: "Çarşamba Tempo" } });
+    fireEvent.change(startInput, { target: { value: "18:30" } });
+    fireEvent.change(endInput, { target: { value: "20:30" } });
+
+    // Güncelle butonuna bas
+    fireEvent.click(screen.getByRole("button", { name: "Düzenlemeyi kaydet" }));
+
+    expect(screen.queryByTestId("schedule-edit-row-tue-eve")).not.toBeInTheDocument();
+    expect(screen.getByText("Çarşamba Tempo")).toBeInTheDocument();
+    expect(screen.getByText(/Çarşamba · 18:30–20:30/)).toBeInTheDocument();
+    // Otomatik senkronizasyon önizlemesi de güncellenmeli (20:30 + 60dk = 21:30)
+    expect(screen.getByText("Çarşamba 21:30")).toBeInTheDocument();
+    expect(screen.getByText("Kaydedilmemiş takvim değişikliği var.")).toBeInTheDocument();
+
+    // Takvimi Uygula'ya bas -> ID korunarak güncellenmiş liste gönderilmeli
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Takvimi Uygula" }));
+    });
+
+    expect(updateSpy).toHaveBeenCalledWith(
+      {
+        enforce_schedule: true,
+        run_schedule: [
+          {
+            id: "tue-eve",
+            day: 3,
+            label: "Çarşamba Tempo",
+            start: "18:30",
+            end: "20:30",
+            enabled: true,
+          },
+          baseSettings.run_schedule[1],
+        ],
+      },
+      true
+    );
+    expect(onRefresh).toHaveBeenCalled();
+
+    updateSpy.mockRestore();
+  });
+
+  it("Vazgeç butonuna basılınca değişikliği geri alır ve geçersiz saat aralığını reddeder", async () => {
+    const { default: AdminPanel } = await import("../AdminPanel");
+    const { ToastProvider } = await import("../ToastProvider");
+    const dataService = await import("../../lib/dataService");
+    const updateSpy = vi.spyOn(dataService, "updateGroupSettings").mockResolvedValue(baseSettings);
+
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <AdminPanel
+            settings={baseSettings}
+            checkpoints={[]}
+            activities={[]}
+            profiles={[]}
+            isDemo={true}
+            onRefresh={vi.fn()}
+          />
+        </ToastProvider>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Koşu Takvimi/i }));
+
+    // Düzenle ve değiştir, sonra Vazgeç
+    fireEvent.click(screen.getAllByRole("button", { name: "Pencereyi düzenle" })[0]);
+    fireEvent.change(screen.getByLabelText("Koşu etiketi"), {
+      target: { value: "Geçici Etiket" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Düzenlemeden vazgeç" }));
+
+    expect(screen.queryByText("Geçici Etiket")).not.toBeInTheDocument();
+    expect(screen.getByText("Salı Akşam")).toBeInTheDocument();
+
+    // Geçersiz saat aralığı (bitiş <= başlangıç) kaydedilmemeli
+    fireEvent.click(screen.getAllByRole("button", { name: "Pencereyi düzenle" })[0]);
+    fireEvent.change(screen.getByLabelText("Başlangıç saati"), { target: { value: "21:00" } });
+    fireEvent.change(screen.getByLabelText("Bitiş saati"), { target: { value: "19:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Düzenlemeyi kaydet" }));
+
+    expect(screen.getByTestId("schedule-edit-row-tue-eve")).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitiş saati başlangıç saatinden sonra olmalıdır.")
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Takvimi Uygula" }));
+    });
+    expect(updateSpy).not.toHaveBeenCalled();
+
+    updateSpy.mockRestore();
+  });
+
+  it("düzenleme açıkken doğrudan Takvimi Uygula'ya basıldığında aktif düzenlemeyi de uygular", async () => {
+    const { default: AdminPanel } = await import("../AdminPanel");
+    const { ToastProvider } = await import("../ToastProvider");
+    const dataService = await import("../../lib/dataService");
+    const updateSpy = vi.spyOn(dataService, "updateGroupSettings").mockResolvedValue(baseSettings);
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <AdminPanel
+            settings={baseSettings}
+            checkpoints={[]}
+            activities={[]}
+            profiles={[]}
+            isDemo={true}
+            onRefresh={onRefresh}
+          />
+        </ToastProvider>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Koşu Takvimi/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Pencereyi düzenle" })[1]);
+    fireEvent.change(screen.getByLabelText("Koşu etiketi"), {
+      target: { value: "Pazar Uzun Koşu" },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Takvimi Uygula" }));
+    });
+
+    expect(updateSpy).toHaveBeenCalledWith(
+      {
+        enforce_schedule: true,
+        run_schedule: [
+          baseSettings.run_schedule[0],
+          {
+            id: "sun-morn",
+            day: 0,
+            label: "Pazar Uzun Koşu",
+            start: "07:30",
+            end: "11:00",
+            enabled: true,
+          },
+        ],
+      },
+      true
+    );
+    expect(screen.queryByTestId("schedule-edit-row-sun-morn")).not.toBeInTheDocument();
+
+    updateSpy.mockRestore();
+  });
+});
 

@@ -13,6 +13,8 @@ import {
   Edit3,
   RefreshCw,
   Loader2,
+  Check,
+  X,
 } from "lucide-react";
 import {
   DAY_NAMES_TR,
@@ -20,6 +22,7 @@ import {
   formatDuration,
   formatPace,
   formatSyncTimestamp,
+  parseTimeToMinutes,
 } from "../lib/routeMath";
 import {
   updateGroupSettings,
@@ -76,6 +79,7 @@ export default function AdminPanel({
   const [enforceSchedule, setEnforceSchedule] = useState(settings?.enforce_schedule ?? true);
   const [scheduleList, setScheduleList] = useState(settings?.run_schedule || []);
   const [newWin, setNewWin] = useState({ day: 6, label: "Cumartesi Sabah", start: "08:00", end: "10:30" });
+  const [editingWin, setEditingWin] = useState(null);
 
   // Auto batch sync schedule state
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(settings?.auto_sync_enabled ?? true);
@@ -88,6 +92,7 @@ export default function AdminPanel({
   useEffect(() => {
     setEnforceSchedule(settings?.enforce_schedule ?? true);
     setScheduleList(settings?.run_schedule || []);
+    setEditingWin(null);
     setAutoSyncEnabled(settings?.auto_sync_enabled ?? true);
     setAutoSyncMode(settings?.auto_sync_mode || "after_schedule");
     setAutoSyncDelayMinutes(settings?.auto_sync_delay_minutes ?? 60);
@@ -110,6 +115,27 @@ export default function AdminPanel({
   const [activitySearch, setActivitySearch] = useState("");
 
   const profileMap = new Map(profiles.map((p) => [p.id, p]));
+
+  const applyWindowEdit = (list, draft) => {
+    if (!draft) return list;
+    return list.map((item) =>
+      item.id === draft.id
+        ? {
+            ...item,
+            day: Number(draft.day),
+            label: draft.label.trim() || DAY_NAMES_TR[Number(draft.day)],
+            start: draft.start,
+            end: draft.end,
+            enabled: draft.enabled !== false,
+          }
+        : item
+    );
+  };
+
+  const isValidTimeWindow = (win) => {
+    if (!win?.start || !win?.end) return false;
+    return parseTimeToMinutes(win.end) > parseTimeToMinutes(win.start);
+  };
 
   const handleSaveSettings = async (e) => {
     e.preventDefault();
@@ -134,15 +160,26 @@ export default function AdminPanel({
   };
 
   const handleSaveSchedule = async () => {
+    if (editingWin && !isValidTimeWindow(editingWin)) {
+      showToast("Bitiş saati başlangıç saatinden sonra olmalıdır.", "error");
+      return;
+    }
+
+    const nextSchedule = editingWin
+      ? applyWindowEdit(scheduleList, editingWin)
+      : scheduleList;
+
     try {
       setSaving(true);
       await updateGroupSettings(
         {
           enforce_schedule: enforceSchedule,
-          run_schedule: scheduleList,
+          run_schedule: nextSchedule,
         },
         isDemo
       );
+      setScheduleList(nextSchedule);
+      setEditingWin(null);
       await onRefresh();
       showToast("Koşu gün ve saat takvimi güncellendi.", "success");
     } catch (err) {
@@ -194,6 +231,10 @@ export default function AdminPanel({
 
   const handleAddWindow = (e) => {
     e.preventDefault();
+    if (!isValidTimeWindow(newWin)) {
+      showToast("Bitiş saati başlangıç saatinden sonra olmalıdır.", "error");
+      return;
+    }
     const id = `win-${Date.now()}`;
     setScheduleList((prev) => [
       ...prev,
@@ -206,6 +247,31 @@ export default function AdminPanel({
         enabled: true,
       },
     ]);
+  };
+
+  const handleStartEditWindow = (win) => {
+    setEditingWin({
+      id: win.id,
+      day: Number(win.day),
+      label: win.label || "",
+      start: win.start || "19:00",
+      end: win.end || "21:30",
+      enabled: win.enabled !== false,
+    });
+  };
+
+  const handleConfirmEditWindow = () => {
+    if (!editingWin) return;
+    if (!isValidTimeWindow(editingWin)) {
+      showToast("Bitiş saati başlangıç saatinden sonra olmalıdır.", "error");
+      return;
+    }
+    setScheduleList((prev) => applyWindowEdit(prev, editingWin));
+    setEditingWin(null);
+  };
+
+  const handleCancelEditWindow = () => {
+    setEditingWin(null);
   };
 
   const handleSaveCheckpoint = async (e) => {
@@ -296,8 +362,17 @@ export default function AdminPanel({
     return act.name.toLowerCase().includes(q) || runner.includes(q);
   });
 
+  const effectiveScheduleList = editingWin
+    ? applyWindowEdit(scheduleList, editingWin)
+    : scheduleList;
+
+  const hasUnsavedScheduleChanges =
+    enforceSchedule !== (settings?.enforce_schedule ?? true) ||
+    Boolean(editingWin) ||
+    JSON.stringify(scheduleList) !== JSON.stringify(settings?.run_schedule || []);
+
   const scheduledPreview = computeScheduledSyncPreview({
-    run_schedule: scheduleList,
+    run_schedule: effectiveScheduleList,
     auto_sync_enabled: autoSyncEnabled,
     auto_sync_mode: autoSyncMode,
     auto_sync_delay_minutes: autoSyncDelayMinutes,
@@ -477,57 +552,197 @@ export default function AdminPanel({
             </div>
 
             <div className="space-y-2">
-              {scheduleList.map((win) => (
-                <div
-                  key={win.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-obsidian-600 bg-obsidian-900 px-4 py-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={win.enabled !== false}
-                      onChange={() =>
-                        setScheduleList((prev) =>
-                          prev.map((item) =>
-                            item.id === win.id
-                              ? { ...item, enabled: item.enabled === false }
-                              : item
-                          )
-                        )
-                      }
-                      className="h-4 w-4 accent-pine-500"
-                    />
-                    <div>
-                      <span className="font-semibold text-sm text-sand-100">{win.label}</span>
-                      <span className="ml-2 font-mono text-xs text-sand-400">
-                        {DAY_NAMES_TR[win.day]} · {win.start}–{win.end}
-                      </span>
-                    </div>
-                  </div>
+              {scheduleList.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-obsidian-600 bg-obsidian-900/50 px-4 py-4 text-xs text-sand-400">
+                  Henüz tanımlı koşu penceresi yok. Aşağıdan yeni bir koşu penceresi ekleyebilirsiniz.
+                </p>
+              ) : (
+                scheduleList.map((win) => {
+                  const isEditing = editingWin?.id === win.id;
+                  if (isEditing) {
+                    return (
+                      <div
+                        key={win.id}
+                        data-testid={`schedule-edit-row-${win.id}`}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleConfirmEditWindow();
+                          } else if (e.key === "Escape") {
+                            e.preventDefault();
+                            handleCancelEditWindow();
+                          }
+                        }}
+                        className="rounded-xl border border-ember-500/60 bg-obsidian-900 px-4 py-3 space-y-3"
+                      >
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
+                          <div className="sm:col-span-3 flex items-center gap-2.5">
+                            <input
+                              type="checkbox"
+                              checked={editingWin.enabled !== false}
+                              onChange={(e) =>
+                                setEditingWin((prev) => ({ ...prev, enabled: e.target.checked }))
+                              }
+                              aria-label="Pencere aktif"
+                              className="h-4 w-4 accent-pine-500 shrink-0"
+                            />
+                            <select
+                              aria-label="Koşu günü"
+                              value={editingWin.day}
+                              onChange={(e) =>
+                                setEditingWin((prev) => ({
+                                  ...prev,
+                                  day: Number(e.target.value),
+                                }))
+                              }
+                              className="w-full rounded-lg border border-obsidian-600 bg-obsidian-800 px-2.5 py-1.5 text-sm text-sand-100 focus:border-ember-500 focus:outline-none"
+                            >
+                              {DAY_NAMES_TR.map((d, idx) => (
+                                <option key={d} value={idx}>
+                                  {d}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setScheduleList((prev) => prev.filter((item) => item.id !== win.id))
-                    }
-                    className="rounded-lg p-1.5 text-sand-400 hover:bg-red-500/15 hover:text-red-400 transition-colors"
-                    aria-label="Pencereyi sil"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
+                          <div className="sm:col-span-5">
+                            <input
+                              type="text"
+                              aria-label="Koşu etiketi"
+                              placeholder="Etiket (ör. Salı Akşam)"
+                              value={editingWin.label}
+                              onChange={(e) =>
+                                setEditingWin((prev) => ({ ...prev, label: e.target.value }))
+                              }
+                              className="w-full rounded-lg border border-obsidian-600 bg-obsidian-800 px-3 py-1.5 text-sm text-sand-100 focus:border-ember-500 focus:outline-none"
+                            />
+                          </div>
+
+                          <div className="sm:col-span-2">
+                            <input
+                              type="time"
+                              aria-label="Başlangıç saati"
+                              value={editingWin.start}
+                              onChange={(e) =>
+                                setEditingWin((prev) => ({ ...prev, start: e.target.value }))
+                              }
+                              className="w-full rounded-lg border border-obsidian-600 bg-obsidian-800 px-2.5 py-1.5 font-mono text-sm text-sand-100 focus:border-ember-500 focus:outline-none"
+                            />
+                          </div>
+
+                          <div className="sm:col-span-2">
+                            <input
+                              type="time"
+                              aria-label="Bitiş saati"
+                              value={editingWin.end}
+                              onChange={(e) =>
+                                setEditingWin((prev) => ({ ...prev, end: e.target.value }))
+                              }
+                              className="w-full rounded-lg border border-obsidian-600 bg-obsidian-800 px-2.5 py-1.5 font-mono text-sm text-sand-100 focus:border-ember-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={handleCancelEditWindow}
+                            aria-label="Düzenlemeden vazgeç"
+                            className="inline-flex items-center gap-1 rounded-lg border border-obsidian-600 bg-obsidian-800 hover:bg-obsidian-700 px-3 py-1.5 text-xs font-semibold text-sand-300 transition-colors"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                            Vazgeç
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleConfirmEditWindow}
+                            aria-label="Düzenlemeyi kaydet"
+                            className="inline-flex items-center gap-1 rounded-lg border border-pine-500/40 bg-pine-500/15 hover:bg-pine-500/25 px-3 py-1.5 text-xs font-semibold text-pine-400 transition-colors"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                            Güncelle
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={win.id}
+                      data-testid={`schedule-row-${win.id}`}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-obsidian-600 bg-obsidian-900 px-4 py-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={win.enabled !== false}
+                          onChange={() =>
+                            setScheduleList((prev) =>
+                              prev.map((item) =>
+                                item.id === win.id
+                                  ? { ...item, enabled: item.enabled === false }
+                                  : item
+                              )
+                            )
+                          }
+                          className="h-4 w-4 accent-pine-500"
+                        />
+                        <div>
+                          <span className="font-semibold text-sm text-sand-100">{win.label}</span>
+                          <span className="ml-2 font-mono text-xs text-sand-400">
+                            {DAY_NAMES_TR[win.day]} · {win.start}–{win.end}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleStartEditWindow(win)}
+                          className="rounded-lg p-1.5 text-sand-400 hover:bg-obsidian-700 hover:text-sand-100 transition-colors"
+                          aria-label="Pencereyi düzenle"
+                          title="Düzenle"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setScheduleList((prev) => prev.filter((item) => item.id !== win.id));
+                            if (editingWin?.id === win.id) {
+                              setEditingWin(null);
+                            }
+                          }}
+                          className="rounded-lg p-1.5 text-sand-400 hover:bg-red-500/15 hover:text-red-400 transition-colors"
+                          aria-label="Pencereyi sil"
+                          title="Sil"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
 
-            <button
-              type="button"
-              onClick={handleSaveSchedule}
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-xl bg-ember-500 hover:bg-ember-600 disabled:opacity-50 px-5 py-2.5 text-sm font-semibold text-white transition-colors"
-            >
-              <Save className="h-4 w-4" />
-              Takvimi Uygula
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handleSaveSchedule}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-xl bg-ember-500 hover:bg-ember-600 disabled:opacity-50 px-5 py-2.5 text-sm font-semibold text-white transition-colors"
+              >
+                <Save className="h-4 w-4" />
+                Takvimi Uygula
+              </button>
+              {hasUnsavedScheduleChanges && (
+                <span className="text-xs font-medium text-ember-400">
+                  Kaydedilmemiş takvim değişikliği var.
+                </span>
+              )}
+            </div>
           </div>
 
           <form
